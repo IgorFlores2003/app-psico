@@ -8,17 +8,26 @@ import {
   LogOut,
   ChevronRight,
   Search,
-  Plus
+  Plus,
+  Shield
 } from 'lucide-react';
 import PatientsList from '../../components/admin/PatientsList';
 import DashboardStats from '../../components/admin/DashboardStats';
 import NewPatientModal from '../../components/admin/NewPatientModal';
+import UsersList from '../../components/admin/UsersList';
+import NewUserModal from '../../components/admin/NewUserModal';
+import { useAuth } from '../../contexts/AuthContext';
+import logoImg from '../../assets/logo.png';
 
 const AdminDashboard: React.FC = () => {
+  const { signOut } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
   const handleRefresh = () => setRefreshKey(prev => prev + 1);
@@ -26,6 +35,7 @@ const AdminDashboard: React.FC = () => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
     { id: 'patients', label: 'Pacientes', icon: <Users size={20} /> },
+    { id: 'users', label: 'Usuários', icon: <Shield size={20} /> },
     { id: 'forms', label: 'Formulários', icon: <FileText size={20} /> },
     { id: 'send', label: 'Enviar Questionário', icon: <Send size={20} /> },
   ];
@@ -47,9 +57,7 @@ const AdminDashboard: React.FC = () => {
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="flex items-center gap-3 mb-12">
-          <div className="w-10 h-10 bg-brand-500 rounded-xl flex items-center justify-center shadow-lg shadow-brand-500/20">
-            <span className="text-xl font-bold text-white">P</span>
-          </div>
+          <img src={logoImg} alt="app-psico Logo" className="w-10 h-10 object-contain brightness-0 invert" />
           <h1 className="text-xl font-bold tracking-tight">app-psico <span className="text-brand-400 font-medium text-sm">Admin</span></h1>
         </div>
 
@@ -75,7 +83,10 @@ const AdminDashboard: React.FC = () => {
             <Settings size={20} />
             <span className="font-medium text-sm">Configurações</span>
           </button>
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-300 hover:bg-red-500/10 hover:text-red-400 transition-all">
+          <button 
+            onClick={signOut}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-300 hover:bg-red-500/10 hover:text-red-400 transition-all"
+          >
             <LogOut size={20} />
             <span className="font-medium text-sm">Sair</span>
           </button>
@@ -105,17 +116,37 @@ const AdminDashboard: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 lg:gap-4">
+          <div className="flex items-center gap-3 lg:gap-4 relative">
             <button 
-              onClick={() => setIsModalOpen(true)}
-              className="bg-brand-500 text-white p-2.5 lg:px-5 lg:py-2.5 rounded-xl font-semibold text-sm flex items-center gap-2 hover:bg-brand-600 transition-all shadow-lg shadow-brand-500/30 active:scale-95"
+              onClick={() => setIsProfileOpen(!isProfileOpen)}
+              className="w-10 h-10 rounded-full bg-brand-100 border-2 border-brand-200 flex items-center justify-center text-brand-600 font-bold overflow-hidden shadow-sm hover:ring-2 hover:ring-brand-500/20 transition-all active:scale-95"
             >
-              <Plus size={18} />
-              <span className="hidden lg:inline">Novo Paciente</span>
-            </button>
-            <div className="w-10 h-10 rounded-full bg-brand-100 border-2 border-brand-200 flex items-center justify-center text-brand-600 font-bold overflow-hidden shadow-sm">
               AD
-            </div>
+            </button>
+
+            {/* Profile Dropdown */}
+            {isProfileOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setIsProfileOpen(false)} />
+                <div className="absolute top-12 right-0 w-48 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-2 animate-in fade-in zoom-in-95 duration-200">
+                  <div className="px-4 py-3 border-b border-slate-100 mb-1">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Administrador</p>
+                    <p className="text-sm font-bold text-slate-700 truncate">admin@psico.com</p>
+                  </div>
+                  <button className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors text-left">
+                    <Settings size={16} />
+                    Configurações
+                  </button>
+                  <button 
+                    onClick={signOut}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-colors text-left"
+                  >
+                    <LogOut size={16} />
+                    Sair da conta
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </header>
 
@@ -125,7 +156,7 @@ const AdminDashboard: React.FC = () => {
             <div className="space-y-6 lg:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500" key={`dash-${refreshKey}`}>
               <div className="flex flex-col gap-1">
                 <h2 className="text-2xl font-bold text-slate-800">Bem-vindo, Administrador</h2>
-                <p className="text-slate-500 font-medium">Resumo do dia: 10 de Abril</p>
+                <p className="text-slate-500 font-medium">Resumo do dia: {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}</p>
               </div>
               <DashboardStats />
               
@@ -152,6 +183,25 @@ const AdminDashboard: React.FC = () => {
             </div>
           )}
 
+          {activeTab === 'users' && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500" key={`users-${refreshKey}`}>
+               <div className="mb-6 lg:mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                  <div className="flex flex-col gap-1">
+                    <h2 className="text-2xl font-bold text-slate-800">Gestão de Usuários</h2>
+                    <p className="text-slate-500 font-medium text-sm lg:text-base">Administradores e colaboradores com acesso ao sistema.</p>
+                  </div>
+                  <button 
+                    onClick={() => setIsUserModalOpen(true)}
+                    className="bg-brand-500 text-white px-6 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-brand-600 transition-all shadow-lg shadow-brand-500/20 active:scale-95 whitespace-nowrap"
+                  >
+                    <Plus size={18} />
+                    Novo Usuário
+                  </button>
+              </div>
+              <UsersList key={refreshKey} />
+            </div>
+          )}
+
           {(activeTab === 'forms' || activeTab === 'send') && (
             <div className="h-[50vh] lg:h-[60vh] flex items-center justify-center text-slate-400 font-medium bg-white rounded-3xl border-2 border-dashed border-slate-200 animate-in zoom-in-95 duration-500">
                {activeTab === 'forms' ? 'Gerenciador de Formulários' : 'Envio de Questionários'}
@@ -165,10 +215,14 @@ const AdminDashboard: React.FC = () => {
         onClose={() => setIsModalOpen(false)} 
         onSuccess={handleRefresh}
       />
+
+      <NewUserModal 
+        isOpen={isUserModalOpen} 
+        onClose={() => setIsUserModalOpen(false)} 
+        onSuccess={handleRefresh}
+      />
     </div>
   );
 };
-
-
 
 export default AdminDashboard;

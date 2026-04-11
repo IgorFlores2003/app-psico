@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   ClipboardCheck, 
   MessageCircle, 
@@ -8,24 +8,55 @@ import {
   Bell
 } from 'lucide-react';
 import QuestionnaireCard from '../../components/patient/QuestionnaireCard';
+import api from '../../services/api';
+
+interface DashboardData {
+  name: string;
+  nextAppointment: {
+    date: string;
+    type: string;
+  } | null;
+  questionnaires: {
+    id: number;
+    title: string;
+    description: string;
+    status: string;
+    dueDate: string;
+  }[];
+}
 
 const PatientView: React.FC = () => {
-  const activeQuestionnaires = [
-    { 
-      id: 1, 
-      title: 'Auto-avaliação Semanal', 
-      description: 'Como está seu humor hoje? Responda em 2 min.',
-      status: 'Pendente',
-      dueDate: 'Expira hoje'
-    },
-    { 
-      id: 2, 
-      title: 'Diário de Pensamentos', 
-      description: 'Registre os momentos marcantes da sua semana.',
-      status: 'Pendente',
-      dueDate: 'Expira em 2 dias'
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadDashboard() {
+      try {
+        // Using ID 1 as default patient for now
+        const response = await api.get('/patient/1/dashboard');
+        setData(response.data);
+      } catch (error) {
+        console.error('Error loading patient dashboard:', error);
+      } finally {
+        setLoading(false);
+      }
     }
-  ];
+    loadDashboard();
+  }, []);
+
+  const formatDate = (dateString: string) => {
+    const options: Intl.DateTimeFormatOptions = { weekday: 'long', hour: '2-digit', minute: '2-digit' };
+    return new Date(dateString).toLocaleDateString('pt-BR', options);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-slate-50 flex-col gap-4">
+        <div className="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">Carregando...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
@@ -38,7 +69,7 @@ const PatientView: React.FC = () => {
             </div>
             <div>
               <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Paciente</p>
-              <h1 className="text-xl font-bold text-slate-800">Olá, Marcos</h1>
+              <h1 className="text-xl font-bold text-slate-800">Olá, {data?.name.split(' ')[0]}</h1>
             </div>
           </div>
           <button className="p-3 bg-slate-100 rounded-2xl text-slate-500 relative">
@@ -52,11 +83,15 @@ const PatientView: React.FC = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Calendar size={24} className="text-brand-200" />
-              <span className="text-lg font-bold">Terça-feira, 14:00</span>
+              <span className="text-lg font-bold">
+                {data?.nextAppointment ? formatDate(data.nextAppointment.date) : 'Sem consultas'}
+              </span>
             </div>
-            <button className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-xl text-xs font-bold uppercase hover:bg-white/30 transition-all">
-              Confirmar
-            </button>
+            {data?.nextAppointment && (
+              <button className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-xl text-xs font-bold uppercase hover:bg-white/30 transition-all">
+                Confirmar
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -70,9 +105,15 @@ const PatientView: React.FC = () => {
           </div>
           
           <div className="space-y-4">
-            {activeQuestionnaires.map((q) => (
-              <QuestionnaireCard key={q.id} questionnaire={q} />
-            ))}
+            {data?.questionnaires && data.questionnaires.length > 0 ? (
+              data.questionnaires.map((q) => (
+                <QuestionnaireCard key={q.id} questionnaire={q} />
+              ))
+            ) : (
+              <div className="p-12 text-center text-slate-300 font-medium italic border-2 border-dashed border-slate-200 rounded-3xl bg-white">
+                Nenhum questionário pendente.
+              </div>
+            )}
           </div>
         </section>
 
@@ -83,7 +124,7 @@ const PatientView: React.FC = () => {
             </div>
             <div className="flex-1">
               <h3 className="font-bold text-slate-800">Chat com seu Psicólogo</h3>
-              <p className="text-sm text-slate-500 mb-4">Você tem 2 novas mensagens não lidas.</p>
+              <p className="text-sm text-slate-500 mb-4">Mande uma mensagem se precisar.</p>
               <button className="w-full bg-slate-900 text-white py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-all">
                 Abrir Chat
                 <ArrowRight size={16} />
