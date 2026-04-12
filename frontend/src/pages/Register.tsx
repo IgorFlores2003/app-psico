@@ -21,7 +21,7 @@ const Register: React.FC = () => {
     setError('');
 
     try {
-      await api.post('/login', { name, email, password, role: 'psicologo' });
+      await api.post('/register', { name, email, password, role: 'psicologo' });
       
       // Auto-Sign In
       await signIn({ email, password });
