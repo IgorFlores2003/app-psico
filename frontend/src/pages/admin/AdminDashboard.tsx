@@ -29,6 +29,9 @@ const AdminDashboard: React.FC = () => {
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
+  const primaryButton =
+  "flex items-center gap-2 rounded-2xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 hover:bg-indigo-500 hover:shadow-indigo-500/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-all active:scale-[0.97]";
+
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
   const handleRefresh = () => setRefreshKey(prev => prev + 1);
 
@@ -69,23 +72,23 @@ const AdminDashboard: React.FC = () => {
                 setActiveTab(item.id);
                 setIsSidebarOpen(false);
               }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${activeTab === item.id ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/30' : 'text-brand-300 hover:bg-brand-800 hover:text-white'}`}
+              className={`w-full flex items-center gap-3 px-6 py-3.5 rounded-2xl transition-all duration-300 group active:scale-[0.98] ${activeTab === item.id ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/30' : 'text-brand-300 hover:bg-brand-800 hover:text-white'}`}
             >
               {item.icon}
               <span className="font-medium text-sm">{item.label}</span>
-              {activeTab === item.id && <ChevronRight size={16} className="ml-auto" />}
+              {activeTab === item.id && <ChevronRight size={16} className="ml-auto animate-in fade-in slide-in-from-left-2" />}
             </button>
           ))}
         </nav>
 
         <div className="pt-6 border-t border-brand-800 mt-6 space-y-2">
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-brand-300 hover:bg-brand-800 hover:text-white transition-all">
+          <button className="w-full flex items-center gap-3 px-6 py-3 rounded-2xl text-brand-300 hover:bg-brand-800 hover:text-white transition-all duration-300 active:scale-[0.98]">
             <Settings size={20} />
             <span className="font-medium text-sm">Configurações</span>
           </button>
           <button 
             onClick={signOut}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-300 hover:bg-red-500/10 hover:text-red-400 transition-all"
+            className="w-full flex items-center gap-3 px-6 py-3 rounded-2xl text-red-300 hover:bg-red-500/10 hover:text-red-400 transition-all duration-300 active:scale-[0.98]"
           >
             <LogOut size={20} />
             <span className="font-medium text-sm">Sair</span>
@@ -161,11 +164,17 @@ const AdminDashboard: React.FC = () => {
               <DashboardStats />
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
-                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm h-64 lg:h-80 flex items-center justify-center text-slate-400 font-medium italic text-center px-8">
-                    Análise Mensal de Engajamento
+                 <div className="bg-white p-12 rounded-3xl border-2 border-dashed border-slate-200 shadow-sm flex flex-col items-center justify-center text-slate-400 font-medium text-center px-8 gap-4 opacity-60">
+                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center">
+                      <LayoutDashboard size={32} className="text-slate-300" />
+                    </div>
+                    <p className="italic">Aguardando dados para gerar <br/> Análise de Engajamento</p>
                  </div>
-                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm h-64 lg:h-80 flex items-center justify-center text-slate-400 font-medium italic text-center px-8">
-                    Evolução de Respostas
+                 <div className="bg-white p-12 rounded-3xl border-2 border-dashed border-slate-200 shadow-sm flex flex-col items-center justify-center text-slate-400 font-medium text-center px-8 gap-4 opacity-60">
+                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center">
+                      <FileText size={32} className="text-slate-300" />
+                    </div>
+                    <p className="italic">Evolução de Respostas aparecerá <br/> aqui em breve</p>
                  </div>
               </div>
             </div>
@@ -173,12 +182,21 @@ const AdminDashboard: React.FC = () => {
 
           {activeTab === 'patients' && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-x-hidden" key={`list-${refreshKey}`}>
-               <div className="mb-6 lg:mb-8 flex flex-col gap-1">
-                  <h2 className="text-2xl font-bold text-slate-800">Lista de Pacientes</h2>
-                  <p className="text-slate-500 font-medium text-sm lg:text-base">Visualize todos os pacientes cadastrados.</p>
+               <div className="mb-6 lg:mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                  <div className="flex flex-col gap-1">
+                    <h2 className="text-2xl font-bold text-slate-800">Lista de Pacientes</h2>
+                    <p className="text-slate-500 font-medium text-sm lg:text-base">Visualize todos os pacientes cadastrados.</p>
+                  </div>
+            <button 
+  onClick={() => setIsModalOpen(true)}
+  className={primaryButton}
+>
+  <Plus size={18} />
+  Novo Paciente
+</button>
               </div>
               <div className="overflow-x-auto -mx-4 lg:mx-0 px-4 lg:px-0">
-                <PatientsList />
+                <PatientsList refreshKey={refreshKey} />
               </div>
             </div>
           )}
@@ -192,13 +210,13 @@ const AdminDashboard: React.FC = () => {
                   </div>
                   <button 
                     onClick={() => setIsUserModalOpen(true)}
-                    className="bg-brand-500 text-white px-6 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-brand-600 transition-all shadow-lg shadow-brand-500/20 active:scale-95 whitespace-nowrap"
+                    className="flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-all active:scale-[0.98]"
                   >
                     <Plus size={18} />
                     Novo Usuário
                   </button>
               </div>
-              <UsersList key={refreshKey} />
+              <UsersList refreshKey={refreshKey} />
             </div>
           )}
 

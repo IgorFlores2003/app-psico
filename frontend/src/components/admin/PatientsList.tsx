@@ -12,7 +12,11 @@ interface Patient {
   status?: string;
 }
 
-const PatientsList: React.FC = () => {
+interface PatientsListProps {
+  refreshKey?: number;
+}
+
+export default function PatientsList({ refreshKey }: PatientsListProps) {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -28,7 +32,7 @@ const PatientsList: React.FC = () => {
       }
     }
     loadPatients();
-  }, []);
+  }, [refreshKey]);
 
   if (loading) {
     return (
@@ -112,8 +116,8 @@ const PatientsList: React.FC = () => {
                 </span>
               </td>
               <td className="px-6 py-5 text-right">
-                <button className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-400 hover:text-brand-500">
-                  <MoreHorizontal size={20} />
+                <button className="inline-flex items-center rounded-xl bg-white px-2.5 py-2.5 text-slate-400 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50 transition-all active:scale-[0.98]">
+                  <MoreHorizontal size={18} />
                 </button>
               </td>
             </tr>
@@ -125,7 +129,4 @@ const PatientsList: React.FC = () => {
       </div>
     </div>
   );
-};
-
-
-export default PatientsList;
+}

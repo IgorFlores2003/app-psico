@@ -9,7 +9,7 @@ import { auth } from './middleware/auth';
 const routes = Router();
 
 // Sessions (Login)
-routes.post('/sessions', SessionsController.create);
+routes.post('/login', SessionsController.create);
 
 // Protected Admin Routes
 routes.get('/patients', auth, PatientsController.index);

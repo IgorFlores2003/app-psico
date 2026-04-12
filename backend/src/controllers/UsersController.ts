@@ -33,10 +33,10 @@ class UsersController {
         name,
         email,
         password: hashedPassword,
-        role: role || 'paciente',
+        role: role || 'psicologo',
       });
 
-      return res.status(201).json({ id, name, email, role: role || 'paciente' });
+      return res.status(201).json({ id, name, email, role: role || 'psicologo' });
     } catch (error) {
       console.error(error);
       return res.status(500).json({ error: 'Erro ao criar usuário' });

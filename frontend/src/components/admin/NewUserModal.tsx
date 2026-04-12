@@ -139,7 +139,7 @@ const NewUserModal: React.FC<NewUserModalProps> = ({ isOpen, onClose, onSuccess 
                 <button 
                   disabled={loading}
                   type="submit"
-                  className="w-full bg-brand-500 hover:bg-brand-600 text-white py-4 rounded-2xl font-bold transition-all shadow-lg shadow-brand-500/20 active:scale-95 disabled:opacity-50 flex items-center justify-center"
+                  className="flex w-full justify-center rounded-2xl bg-indigo-600 px-6 py-3 text-sm font-semibold leading-6 text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 transition-all active:scale-[0.98]"
                 >
                   {loading ? (
                     <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -148,7 +148,7 @@ const NewUserModal: React.FC<NewUserModalProps> = ({ isOpen, onClose, onSuccess 
                 <button 
                   type="button"
                   onClick={onClose}
-                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 py-4 rounded-2xl font-bold transition-all active:scale-95"
+                  className="flex w-full justify-center rounded-2xl bg-white px-6 py-3 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50 transition-all active:scale-[0.98]"
                 >
                   Cancelar
                 </button>

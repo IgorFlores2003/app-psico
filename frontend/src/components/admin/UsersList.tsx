@@ -10,7 +10,11 @@ interface UserData {
   created_at: string;
 }
 
-const UsersList: React.FC = () => {
+interface UsersListProps {
+  refreshKey?: number;
+}
+
+export default function UsersList({ refreshKey }: UsersListProps) {
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,13 +30,13 @@ const UsersList: React.FC = () => {
       }
     }
     loadUsers();
-  }, []);
+  }, [refreshKey]);
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {[1, 2, 3].map(i => (
-          <div key={i} className="h-20 bg-slate-100 animate-pulse rounded-2xl w-full"></div>
+          <div key={i} className="h-24 bg-slate-100 animate-pulse rounded-3xl w-full border border-slate-200"></div>
         ))}
       </div>
     );
@@ -43,13 +47,13 @@ const UsersList: React.FC = () => {
       {users.map((user) => (
         <div key={user.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-all group overflow-hidden relative">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-brand-50 flex items-center justify-center text-brand-500 group-hover:bg-brand-500 group-hover:text-white transition-colors">
+            <div className="w-12 h-12 rounded-2xl bg-brand-50 flex items-center justify-center text-brand-500 group-hover:bg-brand-500 group-hover:text-white transition-colors duration-300">
               <User size={24} />
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="font-bold text-slate-800 truncate">{user.name}</h3>
-              <div className="flex items-center gap-1.5 text-slate-500 text-sm mb-3">
-                <Mail size={14} className="shrink-0" />
+              <div className="flex items-center gap-1.5 text-slate-500 text-sm mb-3 font-medium">
+                <Mail size={14} className="shrink-0 text-slate-400" />
                 <span className="truncate">{user.email}</span>
               </div>
               
@@ -58,27 +62,25 @@ const UsersList: React.FC = () => {
                     <Calendar size={12} />
                     {new Date(user.created_at).toLocaleDateString('pt-BR')}
                  </div>
-                 <div className="flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-bold uppercase">
+                 <div className="flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-bold uppercase tracking-tight">
                     <ShieldCheck size={12} />
-                    Administrador
+                    {user.role === 'psicologo' ? 'Psicólogo' : 'Administrador'}
                  </div>
               </div>
             </div>
           </div>
           
-          <button className="absolute top-4 right-4 p-2 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
-            <Trash2 size={18} />
+          <button className="absolute top-3 right-3 inline-flex items-center rounded-xl bg-white px-2.5 py-2.5 text-slate-300 shadow-sm ring-1 ring-inset ring-slate-200 hover:text-red-500 hover:ring-red-200 opacity-0 group-hover:opacity-100 transition-all active:scale-[0.98]">
+            <Trash2 size={16} />
           </button>
         </div>
       ))}
 
       {users.length === 0 && (
-        <div className="col-span-full py-20 text-center border-2 border-dashed border-slate-200 rounded-[3rem] bg-white">
+        <div className="col-span-full py-20 text-center border-2 border-dashed border-slate-200 rounded-[3rem] bg-white animate-in zoom-in-95">
           <p className="text-slate-400 font-medium italic">Nenhum administrador cadastrado.</p>
         </div>
       )}
     </div>
   );
-};
-
-export default UsersList;
+}

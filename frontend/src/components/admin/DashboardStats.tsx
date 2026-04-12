@@ -25,10 +25,10 @@ const DashboardStats: React.FC = () => {
   }, []);
 
   const statsList = [
-    { title: 'Total Pacientes', value: stats?.totalPatients || 0, icon: <Users className="text-blue-600" />, trend: stats?.totalPatients ? '+12% este mês' : 'Sem dados de tendência', color: 'bg-blue-50' },
-    { title: 'Forms Respondidos', value: stats?.formsAnswered || 0, icon: <FileCheck className="text-emerald-600" />, trend: stats?.formsAnswered ? '+5% hoje' : 'Aguardando respostas', color: 'bg-emerald-50' },
-    { title: 'Pendentes', value: stats?.pendingForms || 0, icon: <Clock className="text-amber-600" />, trend: stats?.pendingForms ? '-2 desde ontem' : 'Tudo em dia', color: 'bg-amber-50' },
-    { title: 'Taxa de Retorno', value: stats?.returnRate || '0%', icon: <TrendingUp className="text-purple-600" />, trend: stats?.returnRate && stats.returnRate !== '0%' ? '+2.4% vs média' : 'Estabilizado', color: 'bg-purple-50' },
+    { title: 'Total Pacientes', value: stats?.totalPatients || 0, icon: <Users className="text-blue-600" />, trend: '---', color: 'bg-blue-50' },
+    { title: 'Forms Respondidos', value: stats?.formsAnswered || 0, icon: <FileCheck className="text-emerald-600" />, trend: '---', color: 'bg-emerald-50' },
+    { title: 'Pendentes', value: stats?.pendingForms || 0, icon: <Clock className="text-amber-600" />, trend: '---', color: 'bg-amber-50' },
+    { title: 'Taxa de Retorno', value: stats?.returnRate || '0%', icon: <TrendingUp className="text-purple-600" />, trend: '---', color: 'bg-purple-50' },
   ];
 
   return (
