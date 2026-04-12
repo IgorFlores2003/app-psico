@@ -37,9 +37,9 @@ class UsersController {
       });
 
       return res.status(201).json({ id, name, email, role: role || 'psicologo' });
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      return res.status(500).json({ error: 'Erro ao criar usuário' });
+      return res.status(500).json({ error: 'Erro ao criar usuário', details: error.message || error });
     }
   }
 }
