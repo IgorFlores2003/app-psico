@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { prisma } from '../lib/prisma';
+import { db } from '../lib/knex';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -36,17 +36,10 @@ export async function authMiddleware(
       sessionVersion: number;
     };
 
-    const user = await prisma.user.findUnique({
-      where: { id: payload.userId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        twoFactorEnabled: true,
-        sessionVersion: true,
-        lockedUntil: true,
-      },
-    });
+    const user = await db('users')
+      .where({ id: payload.userId })
+      .select('id', 'email', 'name', 'twoFactorEnabled', 'sessionVersion', 'lockedUntil')
+      .first();
 
     if (!user) {
       res.status(401).json({ error: 'Usuário não encontrado.' });
@@ -58,7 +51,8 @@ export async function authMiddleware(
       return;
     }
 
-    if (user.lockedUntil && user.lockedUntil > new Date()) {
+    const lockedUntilDate = user.lockedUntil ? new Date(user.lockedUntil) : null;
+    if (lockedUntilDate && lockedUntilDate > new Date()) {
       res.status(403).json({ error: 'Conta bloqueada temporariamente.' });
       return;
     }
@@ -67,7 +61,7 @@ export async function authMiddleware(
       id: user.id,
       email: user.email,
       name: user.name,
-      twoFactorEnabled: user.twoFactorEnabled,
+      twoFactorEnabled: !!user.twoFactorEnabled,
     };
 
     next();

@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import * as XLSX from 'xlsx';
-import { prisma } from '../lib/prisma';
+import { db } from '../lib/knex';
 import { AuthenticatedRequest } from '../middleware/auth';
 
 export class ExportController {
@@ -19,36 +19,31 @@ export class ExportController {
     }
 
     try {
-      const patient = await prisma.patient.findUnique({ where: { id: patientId } });
+      const patient = await db('patients').where({ id: patientId }).first();
       if (!patient) {
         res.status(404).json({ error: 'Paciente não encontrado.' });
         return;
       }
 
-      const whereClause: {
-        patientId: string;
-        sessionDate?: { gte?: string; lte?: string };
-        status?: string;
-      } = { patientId };
+      let query = db('sessions')
+        .where({ patientId })
+        .select('sessionDate', 'sessionTime', 'status')
+        .orderBy('sessionDate', 'asc');
 
-      if (startDate || endDate) {
-        whereClause.sessionDate = {};
-        if (startDate) whereClause.sessionDate.gte = startDate;
-        if (endDate) whereClause.sessionDate.lte = endDate;
+      if (startDate) {
+        query = query.where('sessionDate', '>=', startDate);
       }
-
+      if (endDate) {
+        query = query.where('sessionDate', '<=', endDate);
+      }
       if (status && status !== 'TODAS') {
-        whereClause.status = status;
+        query = query.where('status', status);
       }
 
-      const sessions = await prisma.session.findMany({
-        where: whereClause,
-        orderBy: { sessionDate: 'asc' },
-        select: { sessionDate: true, sessionTime: true, status: true },
-      });
+      const sessions = await query;
 
       if (format === 'excel') {
-        const rows = sessions.map((s, index) => ({
+        const rows = sessions.map((s: any, index: number) => ({
           'Nº': index + 1,
           'Paciente': patient.fullName,
           'Data': s.sessionDate.split('-').reverse().join('/'),

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
-import { prisma } from '../lib/prisma';
+import crypto from 'crypto';
+import { db } from '../lib/knex';
 import { encryptJSON } from '../lib/crypto';
 import { scoreAssessment } from '../lib/scales';
 
@@ -8,10 +9,9 @@ export class ResponderController {
     const { token } = req.params;
 
     try {
-      const assignment = await prisma.assessmentAssignment.findUnique({
-        where: { secureToken: token },
-        include: { instrument: true },
-      });
+      const assignment = await db('assessment_assignments')
+        .where({ secureToken: token })
+        .first();
 
       if (!assignment) {
         res.status(404).json({ error: 'Questionário não encontrado ou link expirado.' });
@@ -24,22 +24,30 @@ export class ResponderController {
       }
 
       if (new Date(assignment.expiresAt) < new Date()) {
-        await prisma.assessmentAssignment.update({
-          where: { id: assignment.id },
-          data: { status: 'EXPIRADO' },
-        });
+        await db('assessment_assignments')
+          .where({ id: assignment.id })
+          .update({ status: 'EXPIRADO' });
         res.status(410).json({ error: 'Este link de resposta expirou.' });
         return;
       }
 
-      const items = JSON.parse(assignment.instrument.items);
+      const instrument = await db('assessment_instruments')
+        .where({ id: assignment.instrumentId })
+        .first();
+
+      if (!instrument) {
+        res.status(404).json({ error: 'Instrumento associado não encontrado.' });
+        return;
+      }
+
+      const items = JSON.parse(instrument.items);
       res.json({
         instrument: {
-          acronym: assignment.instrument.acronym,
-          name: assignment.instrument.name,
-          category: assignment.instrument.category,
-          instructions: assignment.instrument.instructions,
-          itemCount: assignment.instrument.itemCount,
+          acronym: instrument.acronym,
+          name: instrument.name,
+          category: instrument.category,
+          instructions: instrument.instructions,
+          itemCount: instrument.itemCount,
           items,
         },
       });
@@ -54,10 +62,9 @@ export class ResponderController {
     const { answers } = req.body as { answers: Record<number, number> };
 
     try {
-      const assignment = await prisma.assessmentAssignment.findUnique({
-        where: { secureToken: token },
-        include: { instrument: true },
-      });
+      const assignment = await db('assessment_assignments')
+        .where({ secureToken: token })
+        .first();
 
       if (!assignment) {
         res.status(404).json({ error: 'Questionário não encontrado.' });
@@ -69,43 +76,51 @@ export class ResponderController {
         return;
       }
 
+      const instrument = await db('assessment_instruments')
+        .where({ id: assignment.instrumentId })
+        .first();
+
+      if (!instrument) {
+        res.status(404).json({ error: 'Instrumento não encontrado.' });
+        return;
+      }
+
       const scaleDef = {
-        acronym: assignment.instrument.acronym,
-        name: assignment.instrument.name,
-        category: assignment.instrument.category,
-        description: assignment.instrument.description,
-        whatItMeasures: assignment.instrument.whatItMeasures,
-        authors: assignment.instrument.authors,
-        reference: assignment.instrument.reference,
-        itemCount: assignment.instrument.itemCount,
-        scoringMethod: assignment.instrument.scoringMethod,
-        targetAge: assignment.instrument.targetAge || '',
-        instructions: assignment.instrument.instructions,
-        usageConditions: assignment.instrument.usageConditions,
-        verificationSource: assignment.instrument.verificationSource,
-        cutoffs: JSON.parse(assignment.instrument.cutoffs),
-        items: JSON.parse(assignment.instrument.items),
+        acronym: instrument.acronym,
+        name: instrument.name,
+        category: instrument.category,
+        description: instrument.description,
+        whatItMeasures: instrument.whatItMeasures,
+        authors: instrument.authors,
+        reference: instrument.reference,
+        itemCount: instrument.itemCount,
+        scoringMethod: instrument.scoringMethod,
+        targetAge: instrument.targetAge || '',
+        instructions: instrument.instructions,
+        usageConditions: instrument.usageConditions,
+        verificationSource: instrument.verificationSource,
+        cutoffs: JSON.parse(instrument.cutoffs),
+        items: JSON.parse(instrument.items),
       };
 
       const { score, classification } = scoreAssessment(scaleDef, answers);
 
-      await prisma.$transaction(async (tx) => {
-        await tx.assessmentResponse.create({
-          data: {
-            assignmentId: assignment.id,
-            answersEncrypted: encryptJSON(answers),
-            totalScore: score,
-            classification,
-          },
+      await db.transaction(async (trx) => {
+        await trx('assessment_responses').insert({
+          id: crypto.randomUUID(),
+          assignmentId: assignment.id,
+          answersEncrypted: encryptJSON(answers),
+          totalScore: score,
+          classification,
+          completedAt: new Date().toISOString(),
         });
 
-        await tx.assessmentAssignment.update({
-          where: { id: assignment.id },
-          data: {
+        await trx('assessment_assignments')
+          .where({ id: assignment.id })
+          .update({
             status: 'RESPONDIDO',
-            respondedAt: new Date(),
-          },
-        });
+            respondedAt: new Date().toISOString(),
+          });
       });
 
       res.json({ success: true, message: 'Respostas registradas com sucesso!' });

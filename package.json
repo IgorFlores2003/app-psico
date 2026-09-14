@@ -10,7 +10,8 @@
     "build:front": "npm run build --prefix frontend",
     "build": "npm run build:back && npm run build:front",
     "seed": "npm run seed --prefix backend",
-    "create-user": "npm run create-user --prefix backend"
+    "create-user": "npm run create-user --prefix backend",
+    "migrate": "npm run migrate --prefix backend"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

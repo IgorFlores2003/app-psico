@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { generateSecret, generateURI, verifySync } from 'otplib';
 import QRCode from 'qrcode';
-import { prisma } from '../lib/prisma';
+import { db } from '../lib/knex';
 import { createAuditLog } from '../lib/audit';
 import { AuthenticatedRequest } from '../middleware/auth';
 
@@ -21,11 +21,12 @@ export class AuthController {
       return;
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase().trim() },
-    });
+    const user = await db('users')
+      .where({ email: email.toLowerCase().trim() })
+      .first();
 
     if (!user) {
+      // Prevent timing attacks
       await bcrypt.compare('dummy123', '$2a$12$e8Y5tGzO9N5aYJ9N/bL4e.uG2hXm6Q2gU7.4lX2bU5.1nQ5nK.qye');
       await createAuditLog({
         action: 'LOGIN_FAILED',
@@ -37,8 +38,9 @@ export class AuthController {
       return;
     }
 
-    if (user.lockedUntil && user.lockedUntil > new Date()) {
-      const remainingMinutes = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
+    const lockedUntilDate = user.lockedUntil ? new Date(user.lockedUntil) : null;
+    if (lockedUntilDate && lockedUntilDate > new Date()) {
+      const remainingMinutes = Math.ceil((lockedUntilDate.getTime() - Date.now()) / 60000);
       res.status(403).json({
         error: `Conta bloqueada temporariamente. Tente novamente em ${remainingMinutes} min.`,
         isLocked: true,
@@ -48,12 +50,16 @@ export class AuthController {
 
     const isValid = await bcrypt.compare(password, user.passwordHash);
     if (!isValid) {
-      const attempts = user.failedLoginAttempts + 1;
-      const lockedUntil = attempts >= MAX_FAILED_ATTEMPTS ? new Date(Date.now() + LOCKOUT_MINUTES * 60000) : null;
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { failedLoginAttempts: attempts, lockedUntil },
-      });
+      const attempts = (user.failedLoginAttempts || 0) + 1;
+      const lockedUntil = attempts >= MAX_FAILED_ATTEMPTS ? new Date(Date.now() + LOCKOUT_MINUTES * 60000).toISOString() : null;
+      await db('users')
+        .where({ id: user.id })
+        .update({
+          failedLoginAttempts: attempts,
+          lockedUntil,
+          updatedAt: new Date().toISOString(),
+        });
+
       await createAuditLog({
         action: 'LOGIN_FAILED',
         userId: user.id,
@@ -77,10 +83,13 @@ export class AuthController {
       }
     }
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { failedLoginAttempts: 0, lockedUntil: null },
-    });
+    await db('users')
+      .where({ id: user.id })
+      .update({
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+        updatedAt: new Date().toISOString(),
+      });
 
     const secret = process.env.JWT_SECRET!;
     const token = jwt.sign(
@@ -104,7 +113,7 @@ export class AuthController {
         id: user.id,
         email: user.email,
         name: user.name,
-        twoFactorEnabled: user.twoFactorEnabled,
+        twoFactorEnabled: !!user.twoFactorEnabled,
       },
     });
   }
@@ -115,9 +124,9 @@ export class AuthController {
       return;
     }
 
-    const settings = await prisma.professionalSettings.findUnique({
-      where: { id: 'default' },
-    });
+    const settings = await db('professional_settings')
+      .where({ id: 'default' })
+      .first();
 
     res.json({
       user: req.user,
@@ -135,10 +144,12 @@ export class AuthController {
     });
 
     const qrCodeUrl = await QRCode.toDataURL(otpauth);
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { twoFactorSecret: secret },
-    });
+    await db('users')
+      .where({ id: user.id })
+      .update({
+        twoFactorSecret: secret,
+        updatedAt: new Date().toISOString(),
+      });
 
     res.json({ secret, qrCodeUrl });
   }
@@ -147,7 +158,7 @@ export class AuthController {
     const user = req.user!;
     const { code } = req.body;
 
-    const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
+    const dbUser = await db('users').where({ id: user.id }).first();
     if (!dbUser?.twoFactorSecret) {
       res.status(400).json({ error: 'Configuração não iniciada.' });
       return;
@@ -159,29 +170,36 @@ export class AuthController {
       return;
     }
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { twoFactorEnabled: true },
-    });
+    await db('users')
+      .where({ id: user.id })
+      .update({
+        twoFactorEnabled: true,
+        updatedAt: new Date().toISOString(),
+      });
 
     res.json({ success: true, message: '2FA ativado com sucesso!' });
   }
 
   static async disable2FA(req: AuthenticatedRequest, res: Response): Promise<void> {
     const user = req.user!;
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { twoFactorEnabled: false, twoFactorSecret: null },
-    });
+    await db('users')
+      .where({ id: user.id })
+      .update({
+        twoFactorEnabled: false,
+        twoFactorSecret: null,
+        updatedAt: new Date().toISOString(),
+      });
     res.json({ success: true, message: '2FA desativado.' });
   }
 
   static async revokeAllSessions(req: AuthenticatedRequest, res: Response): Promise<void> {
     const user = req.user!;
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { sessionVersion: { increment: 1 } },
-    });
+    await db('users')
+      .where({ id: user.id })
+      .update({
+        sessionVersion: db.raw('sessionVersion + 1'),
+        updatedAt: new Date().toISOString(),
+      });
     res.json({ success: true, message: 'Todas as sessões foram invalidadas.' });
   }
 }

@@ -1,5 +1,6 @@
 import { Response } from 'express';
-import { prisma } from '../lib/prisma';
+import crypto from 'crypto';
+import { db } from '../lib/knex';
 import { encrypt, decrypt } from '../lib/crypto';
 import { createAuditLog } from '../lib/audit';
 import { AuthenticatedRequest } from '../middleware/auth';
@@ -9,55 +10,106 @@ export class SessionsController {
     const { patientId } = req.params;
 
     try {
-      const sessions = await prisma.session.findMany({
-        where: { patientId },
-        orderBy: { sessionDate: 'desc' },
-        include: {
-          sessionNote: { include: { versions: { orderBy: { createdAt: 'desc' } } } },
-          medicalRecordEntry: { include: { versions: { orderBy: { createdAt: 'desc' } } } },
-        },
+      const sessions = await db('sessions')
+        .where({ patientId })
+        .orderBy('sessionDate', 'desc');
+
+      const sessionIds = sessions.map((s) => s.id);
+
+      const sessionNotes = sessionIds.length
+        ? await db('session_notes').whereIn('sessionId', sessionIds)
+        : [];
+      const noteIds = sessionNotes.map((n) => n.id);
+      const noteVersions = noteIds.length
+        ? await db('note_versions').whereIn('sessionNoteId', noteIds).orderBy('createdAt', 'desc')
+        : [];
+
+      const medicalRecords = sessionIds.length
+        ? await db('medical_record_entries').whereIn('sessionId', sessionIds)
+        : [];
+      const recordIds = medicalRecords.map((r) => r.id);
+      const recordVersions = recordIds.length
+        ? await db('record_versions').whereIn('recordEntryId', recordIds).orderBy('createdAt', 'desc')
+        : [];
+
+      // Map versions to notes and records
+      const noteVersionsMap = new Map<string, any[]>();
+      noteVersions.forEach((v) => {
+        if (!noteVersionsMap.has(v.sessionNoteId)) {
+          noteVersionsMap.set(v.sessionNoteId, []);
+        }
+        noteVersionsMap.get(v.sessionNoteId)!.push(v);
       });
 
-      const decrypted = sessions.map((s) => ({
-        id: s.id,
-        patientId: s.patientId,
-        sessionDate: s.sessionDate,
-        sessionTime: s.sessionTime,
-        status: s.status,
-        rawNotes: s.rawNotesEncrypted ? decrypt(s.rawNotesEncrypted) : null,
-        createdAt: s.createdAt,
-        updatedAt: s.updatedAt,
-        sessionNote: s.sessionNote
-          ? {
-              id: s.sessionNote.id,
-              content: decrypt(s.sessionNote.contentEncrypted),
-              status: s.sessionNote.status,
-              createdAt: s.sessionNote.createdAt,
-              updatedAt: s.sessionNote.updatedAt,
-              versions: s.sessionNote.versions.map((v) => ({
-                id: v.id,
-                content: decrypt(v.contentEncrypted),
-                reason: v.reason,
-                createdAt: v.createdAt,
-              })),
-            }
-          : null,
-        medicalRecordEntry: s.medicalRecordEntry
-          ? {
-              id: s.medicalRecordEntry.id,
-              content: decrypt(s.medicalRecordEntry.contentEncrypted),
-              status: s.medicalRecordEntry.status,
-              createdAt: s.medicalRecordEntry.createdAt,
-              updatedAt: s.medicalRecordEntry.updatedAt,
-              versions: s.medicalRecordEntry.versions.map((v) => ({
-                id: v.id,
-                content: decrypt(v.contentEncrypted),
-                reason: v.reason,
-                createdAt: v.createdAt,
-              })),
-            }
-          : null,
-      }));
+      const recordVersionsMap = new Map<string, any[]>();
+      recordVersions.forEach((v) => {
+        if (!recordVersionsMap.has(v.recordEntryId)) {
+          recordVersionsMap.set(v.recordEntryId, []);
+        }
+        recordVersionsMap.get(v.recordEntryId)!.push(v);
+      });
+
+      const sessionNoteMap = new Map<string, any>();
+      sessionNotes.forEach((sn) => {
+        sessionNoteMap.set(sn.sessionId, {
+          ...sn,
+          versions: noteVersionsMap.get(sn.id) || [],
+        });
+      });
+
+      const medicalRecordMap = new Map<string, any>();
+      medicalRecords.forEach((mr) => {
+        medicalRecordMap.set(mr.sessionId, {
+          ...mr,
+          versions: recordVersionsMap.get(mr.id) || [],
+        });
+      });
+
+      const decrypted = sessions.map((s) => {
+        const sNote = sessionNoteMap.get(s.id);
+        const mRecord = medicalRecordMap.get(s.id);
+
+        return {
+          id: s.id,
+          patientId: s.patientId,
+          sessionDate: s.sessionDate,
+          sessionTime: s.sessionTime,
+          status: s.status,
+          rawNotes: s.rawNotesEncrypted ? decrypt(s.rawNotesEncrypted) : null,
+          createdAt: s.createdAt,
+          updatedAt: s.updatedAt,
+          sessionNote: sNote
+            ? {
+                id: sNote.id,
+                content: decrypt(sNote.contentEncrypted),
+                status: sNote.status,
+                createdAt: sNote.createdAt,
+                updatedAt: sNote.updatedAt,
+                versions: sNote.versions.map((v: any) => ({
+                  id: v.id,
+                  content: decrypt(v.contentEncrypted),
+                  reason: v.reason,
+                  createdAt: v.createdAt,
+                })),
+              }
+            : null,
+          medicalRecordEntry: mRecord
+            ? {
+                id: mRecord.id,
+                content: decrypt(mRecord.contentEncrypted),
+                status: mRecord.status,
+                createdAt: mRecord.createdAt,
+                updatedAt: mRecord.updatedAt,
+                versions: mRecord.versions.map((v: any) => ({
+                  id: v.id,
+                  content: decrypt(v.contentEncrypted),
+                  reason: v.reason,
+                  createdAt: v.createdAt,
+                })),
+              }
+            : null,
+        };
+      });
 
       res.json({ sessions: decrypted });
     } catch (err) {
@@ -80,30 +132,41 @@ export class SessionsController {
       const encryptedNote = sessionNote ? encrypt(sessionNote.trim()) : '';
       const encryptedRecord = medicalRecordEntry ? encrypt(medicalRecordEntry.trim()) : '';
 
-      const newSession = await prisma.$transaction(async (tx) => {
-        const s = await tx.session.create({
-          data: {
-            patientId,
-            sessionDate,
-            sessionTime: sessionTime || null,
-            status,
-            rawNotesEncrypted: encryptedRaw,
-          },
+      const sessionId = crypto.randomUUID();
+
+      await db.transaction(async (trx) => {
+        await trx('sessions').insert({
+          id: sessionId,
+          patientId,
+          sessionDate,
+          sessionTime: sessionTime || null,
+          status,
+          rawNotesEncrypted: encryptedRaw,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         });
 
         if (encryptedNote) {
-          await tx.sessionNote.create({
-            data: { sessionId: s.id, contentEncrypted: encryptedNote, status: 'APROVADO' },
+          await trx('session_notes').insert({
+            id: crypto.randomUUID(),
+            sessionId,
+            contentEncrypted: encryptedNote,
+            status: 'APROVADO',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
           });
         }
 
         if (encryptedRecord) {
-          await tx.medicalRecordEntry.create({
-            data: { sessionId: s.id, contentEncrypted: encryptedRecord, status: 'APROVADO' },
+          await trx('medical_record_entries').insert({
+            id: crypto.randomUUID(),
+            sessionId,
+            contentEncrypted: encryptedRecord,
+            status: 'APROVADO',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
           });
         }
-
-        return s;
       });
 
       await createAuditLog({
@@ -113,7 +176,7 @@ export class SessionsController {
         details: `Sessão criada para a data ${sessionDate}`,
       });
 
-      res.json({ success: true, sessionId: newSession.id });
+      res.json({ success: true, sessionId });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Erro ao salvar atendimento.' });
@@ -125,58 +188,53 @@ export class SessionsController {
     const { sessionDate, sessionTime, status, sessionNote, medicalRecordEntry, editReason } = req.body;
 
     try {
-      const session = await prisma.session.findUnique({
-        where: { id: sessionId },
-        include: { sessionNote: true, medicalRecordEntry: true },
-      });
-
+      const session = await db('sessions').where({ id: sessionId }).first();
       if (!session) {
         res.status(404).json({ error: 'Sessão não encontrada.' });
         return;
       }
 
-      await prisma.$transaction(async (tx) => {
-        if (sessionDate || sessionTime !== undefined || status) {
-          await tx.session.update({
-            where: { id: sessionId },
-            data: {
-              sessionDate: sessionDate || undefined,
-              sessionTime: sessionTime !== undefined ? sessionTime : undefined,
-              status: status || undefined,
-            },
-          });
-        }
+      const existingNote = await db('session_notes').where({ sessionId }).first();
+      const existingRecord = await db('medical_record_entries').where({ sessionId }).first();
 
-        if (sessionNote !== undefined && session.sessionNote) {
-          const prevEnc = session.sessionNote.contentEncrypted;
+      await db.transaction(async (trx) => {
+        const updateSessionData: any = { updatedAt: new Date().toISOString() };
+        if (sessionDate) updateSessionData.sessionDate = sessionDate;
+        if (sessionTime !== undefined) updateSessionData.sessionTime = sessionTime;
+        if (status) updateSessionData.status = status;
+
+        await trx('sessions').where({ id: sessionId }).update(updateSessionData);
+
+        if (sessionNote !== undefined && existingNote) {
+          const prevEnc = existingNote.contentEncrypted;
           if (decrypt(prevEnc) !== sessionNote.trim()) {
-            await tx.noteVersion.create({
-              data: {
-                sessionNoteId: session.sessionNote.id,
-                contentEncrypted: prevEnc,
-                reason: editReason || 'Edição posterior',
-              },
+            await trx('note_versions').insert({
+              id: crypto.randomUUID(),
+              sessionNoteId: existingNote.id,
+              contentEncrypted: prevEnc,
+              reason: editReason || 'Edição posterior',
+              createdAt: new Date().toISOString(),
             });
-            await tx.sessionNote.update({
-              where: { id: session.sessionNote.id },
-              data: { contentEncrypted: encrypt(sessionNote.trim()) },
+            await trx('session_notes').where({ id: existingNote.id }).update({
+              contentEncrypted: encrypt(sessionNote.trim()),
+              updatedAt: new Date().toISOString(),
             });
           }
         }
 
-        if (medicalRecordEntry !== undefined && session.medicalRecordEntry) {
-          const prevEnc = session.medicalRecordEntry.contentEncrypted;
+        if (medicalRecordEntry !== undefined && existingRecord) {
+          const prevEnc = existingRecord.contentEncrypted;
           if (decrypt(prevEnc) !== medicalRecordEntry.trim()) {
-            await tx.recordVersion.create({
-              data: {
-                recordEntryId: session.medicalRecordEntry.id,
-                contentEncrypted: prevEnc,
-                reason: editReason || 'Edição posterior',
-              },
+            await trx('record_versions').insert({
+              id: crypto.randomUUID(),
+              recordEntryId: existingRecord.id,
+              contentEncrypted: prevEnc,
+              reason: editReason || 'Edição posterior',
+              createdAt: new Date().toISOString(),
             });
-            await tx.medicalRecordEntry.update({
-              where: { id: session.medicalRecordEntry.id },
-              data: { contentEncrypted: encrypt(medicalRecordEntry.trim()) },
+            await trx('medical_record_entries').where({ id: existingRecord.id }).update({
+              contentEncrypted: encrypt(medicalRecordEntry.trim()),
+              updatedAt: new Date().toISOString(),
             });
           }
         }

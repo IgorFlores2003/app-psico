@@ -1,5 +1,6 @@
 import { Response } from 'express';
-import { prisma } from '../lib/prisma';
+import crypto from 'crypto';
+import { db } from '../lib/knex';
 import { encryptJSON, decryptJSON } from '../lib/crypto';
 import { AuthenticatedRequest } from '../middleware/auth';
 
@@ -8,7 +9,7 @@ export class AnamnesisController {
     const { patientId } = req.params;
 
     try {
-      const anamnesis = await prisma.anamnesis.findUnique({ where: { patientId } });
+      const anamnesis = await db('anamnesis').where({ patientId }).first();
       if (!anamnesis) {
         res.json({ anamnesis: null });
         return;
@@ -34,12 +35,27 @@ export class AnamnesisController {
 
     try {
       const encrypted = encryptJSON(data || {});
-      const anamnesis = await prisma.anamnesis.upsert({
-        where: { patientId },
-        create: { patientId, dataEncrypted: encrypted },
-        update: { dataEncrypted: encrypted },
-      });
-      res.json({ success: true, anamnesisId: anamnesis.id });
+      const existing = await db('anamnesis').where({ patientId }).first();
+
+      let anamnesisId = existing?.id;
+
+      if (existing) {
+        await db('anamnesis').where({ id: existing.id }).update({
+          dataEncrypted: encrypted,
+          updatedAt: new Date().toISOString(),
+        });
+      } else {
+        anamnesisId = crypto.randomUUID();
+        await db('anamnesis').insert({
+          id: anamnesisId,
+          patientId,
+          dataEncrypted: encrypted,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      res.json({ success: true, anamnesisId });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'Erro ao salvar anamnese.' });

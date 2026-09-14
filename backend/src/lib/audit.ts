@@ -1,4 +1,5 @@
-import { prisma } from './prisma';
+import crypto from 'crypto';
+import { db } from './knex';
 
 export type AuditAction =
   | 'LOGIN'
@@ -36,15 +37,15 @@ interface AuditParams {
 export async function createAuditLog(params: AuditParams): Promise<void> {
   try {
     const safeDetails = params.details ? params.details.substring(0, 300) : null;
-    await prisma.auditLog.create({
-      data: {
-        action: params.action,
-        userId: params.userId || null,
-        patientId: params.patientId || null,
-        details: safeDetails,
-        ipAddress: params.ipAddress || null,
-        userAgent: params.userAgent ? params.userAgent.substring(0, 200) : null,
-      },
+    await db('audit_logs').insert({
+      id: crypto.randomUUID(),
+      action: params.action,
+      userId: params.userId || null,
+      patientId: params.patientId || null,
+      details: safeDetails,
+      ipAddress: params.ipAddress || null,
+      userAgent: params.userAgent ? params.userAgent.substring(0, 200) : null,
+      createdAt: new Date().toISOString(),
     });
   } catch (error) {
     console.error('AuditLog write error:', error);
