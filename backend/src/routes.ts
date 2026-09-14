@@ -1,27 +1,60 @@
 import { Router } from 'express';
-import PatientsController from './controllers/PatientsController';
-import StatsController from './controllers/StatsController';
-import PatientDashboardController from './controllers/PatientDashboardController';
-import SessionsController from './controllers/SessionsController';
-import UsersController from './controllers/UsersController';
-import { auth } from './middleware/auth';
+import { AuthController } from './controllers/AuthController';
+import { PatientsController } from './controllers/PatientsController';
+import { SessionsController } from './controllers/SessionsController';
+import { AIController } from './controllers/AIController';
+import { AnamnesisController } from './controllers/AnamnesisController';
+import { ScalesController } from './controllers/ScalesController';
+import { ResponderController } from './controllers/ResponderController';
+import { ExportController } from './controllers/ExportController';
+import { SettingsController } from './controllers/SettingsController';
+import { authMiddleware } from './middleware/auth';
 
-const routes = Router();
+const router = Router();
 
-// Sessions (Login)
-routes.post('/login', SessionsController.create);
+// Public routes
+router.post('/auth/login', AuthController.login);
+router.get('/responder/:token', ResponderController.getByToken);
+router.post('/responder/:token', ResponderController.submitAnswers);
 
-// Protected Admin Routes
-routes.get('/patients', auth, PatientsController.index);
-routes.post('/patients', auth, PatientsController.create);
-routes.get('/stats', auth, StatsController.index);
+// Protected routes (require valid JWT and active session)
+router.use(authMiddleware);
 
-// User Management
-routes.post('/register', UsersController.create); // Public registration
-routes.get('/users', auth, UsersController.index);
-routes.post('/users', auth, UsersController.create);
+// Auth & Security
+router.get('/auth/me', AuthController.me);
+router.post('/auth/2fa', AuthController.setup2FA);
+router.put('/auth/2fa', AuthController.confirm2FA);
+router.delete('/auth/2fa', AuthController.disable2FA);
+router.post('/auth/sessions/revoke-all', AuthController.revokeAllSessions);
 
-// Patient View (Will be localized later)
-routes.get('/patient/:id/dashboard', PatientDashboardController.show);
+// Patients
+router.get('/pacientes', PatientsController.list);
+router.post('/pacientes', PatientsController.create);
+router.get('/pacientes/:id', PatientsController.getById);
+router.put('/pacientes/:id', PatientsController.update);
+router.patch('/pacientes/:id', PatientsController.toggleArchive);
 
-export default routes;
+// Sessions
+router.get('/pacientes/:patientId/sessoes', SessionsController.listByPatient);
+router.post('/pacientes/:patientId/sessoes', SessionsController.create);
+router.put('/sessoes/:sessionId', SessionsController.update);
+
+// AI
+router.post('/ai/generate', AIController.generate);
+router.post('/ai/regenerate', AIController.regenerate);
+
+// Anamnesis
+router.get('/pacientes/:patientId/anamnese', AnamnesisController.getByPatient);
+router.post('/pacientes/:patientId/anamnese', AnamnesisController.saveByPatient);
+
+// Scales & Questionnaires
+router.get('/escalas', ScalesController.listCatalog);
+router.post('/escalas/aplicar', ScalesController.applyScale);
+router.get('/escalas/paciente/:patientId', ScalesController.getPatientHistory);
+
+// Export & Settings
+router.get('/exportar/historico', ExportController.exportHistory);
+router.get('/configuracoes', SettingsController.getSettings);
+router.put('/configuracoes', SettingsController.updateSettings);
+
+export default router;

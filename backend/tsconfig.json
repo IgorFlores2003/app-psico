@@ -1,18 +1,16 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "baseUrl": ".",
-    "paths": {
-      "*": ["node_modules/*"]
-    },
-    "outDir": "./dist",
+    "module": "commonjs",
+    "lib": ["es2022"],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "resolveJsonModule": true
   },
-  "include": ["src/**/*", "knexfile.ts"],
-  "exclude": ["node_modules", "**/*.spec.ts"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }

@@ -1,32 +1,77 @@
 import { Request, Response, NextFunction } from 'express';
-import { verify } from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
+import { prisma } from '../lib/prisma';
 
-interface TokenPayload {
-  iat: number;
-  exp: number;
-  sub: string;
+export interface AuthenticatedRequest extends Request {
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+    twoFactorEnabled: boolean;
+  };
 }
 
-export function auth(req: Request, res: Response, next: NextFunction) {
+export async function authMiddleware(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   const authHeader = req.headers.authorization;
-
-  if (!authHeader) {
-    return res.status(401).json({ error: 'JWT token is missing' });
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'Token de autenticação não fornecido.' });
+    return;
   }
 
-  const [, token] = authHeader.split(' ');
+  const token = authHeader.split(' ')[1];
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    res.status(500).json({ error: 'Configuração interna de JWT ausente.' });
+    return;
+  }
 
   try {
-    const secret = process.env.APP_SECRET || 'default-secret';
-    const decoded = verify(token, secret);
+    const payload = jwt.verify(token, secret) as {
+      userId: string;
+      email: string;
+      sessionVersion: number;
+    };
 
-    const { sub } = decoded as TokenPayload;
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        twoFactorEnabled: true,
+        sessionVersion: true,
+        lockedUntil: true,
+      },
+    });
 
-    // Optional: Add user ID to request for later use
-    // req.user = { id: sub };
+    if (!user) {
+      res.status(401).json({ error: 'Usuário não encontrado.' });
+      return;
+    }
 
-    return next();
+    if (user.sessionVersion !== payload.sessionVersion) {
+      res.status(401).json({ error: 'Sessão revogada em outro dispositivo.' });
+      return;
+    }
+
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      res.status(403).json({ error: 'Conta bloqueada temporariamente.' });
+      return;
+    }
+
+    req.user = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      twoFactorEnabled: user.twoFactorEnabled,
+    };
+
+    next();
   } catch {
-    return res.status(401).json({ error: 'Invalid JWT token' });
+    res.status(401).json({ error: 'Sessão inválida ou expirada.' });
   }
 }

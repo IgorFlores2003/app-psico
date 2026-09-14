@@ -1,0 +1,31 @@
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import routes from './routes';
+
+const app = express();
+const PORT = process.env.PORT || 3333;
+const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+
+// Security: CORS configured strictly for client origin
+app.use(
+  cors({
+    origin: [CLIENT_URL, 'http://localhost:3000', 'http://localhost:5173'],
+    credentials: true,
+  })
+);
+
+app.use(express.json({ limit: '10mb' }));
+
+// Mount API routes
+app.use('/api', routes);
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', service: 'Prontuario Backend', timestamp: new Date() });
+});
+
+app.listen(PORT, () => {
+  console.log(`\n🛡️  Backend Clínico Seguro rodando em http://localhost:${PORT}`);
+  console.log(`📡 CORS configurado para: ${CLIENT_URL}\n`);
+});

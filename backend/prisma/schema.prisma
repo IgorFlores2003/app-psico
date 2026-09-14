@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String     @id @default(uuid())
+  email               String     @unique
+  name                String
+  passwordHash        String
+  twoFactorSecret     String?
+  twoFactorEnabled    Boolean    @default(false)
+  sessionVersion      Int        @default(1)
+  failedLoginAttempts Int        @default(0)
+  lockedUntil         DateTime?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  auditLogs           AuditLog[]
+}
+
+model Patient {
+  id            String                 @id @default(uuid())
+  fullName      String
+  birthDate     String
+  email         String?
+  phone         String?
+  notes         String?
+  status        String                 @default("ATIVO") // ATIVO, ARQUIVADO, EXCLUIDO_SOFT
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  sessions      Session[]
+  anamnesis     Anamnesis?
+  assignments   AssessmentAssignment[]
+}
+
+model Session {
+  id                 String              @id @default(uuid())
+  patientId          String
+  patient            Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  sessionDate        String              // YYYY-MM-DD
+  sessionTime        String?             // HH:mm
+  status             String              @default("REALIZADA") // REALIZADA, CANCELADA, FALTA, REMARCADA
+  rawNotesEncrypted  String?             // Input transcript / notes encrypted in rest
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  sessionNote        SessionNote?
+  medicalRecordEntry MedicalRecordEntry?
+}
+
+model SessionNote {
+  id               String        @id @default(uuid())
+  sessionId        String        @unique
+  session          Session       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  contentEncrypted String        // AES-256-GCM encrypted
+  status           String        @default("APROVADO") // RASCUNHO, APROVADO
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  versions         NoteVersion[]
+}
+
+model NoteVersion {
+  id               String      @id @default(uuid())
+  sessionNoteId    String
+  sessionNote      SessionNote @relation(fields: [sessionNoteId], references: [id], onDelete: Cascade)
+  contentEncrypted String
+  reason           String?
+  createdAt        DateTime    @default(now())
+}
+
+model MedicalRecordEntry {
+  id               String          @id @default(uuid())
+  sessionId        String          @unique
+  session          Session         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  contentEncrypted String          // AES-256-GCM encrypted
+  status           String          @default("APROVADO") // RASCUNHO, APROVADO
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  versions         RecordVersion[]
+}
+
+model RecordVersion {
+  id               String             @id @default(uuid())
+  recordEntryId    String
+  recordEntry      MedicalRecordEntry @relation(fields: [recordEntryId], references: [id], onDelete: Cascade)
+  contentEncrypted String
+  reason           String?
+  createdAt        DateTime           @default(now())
+}
+
+model Anamnesis {
+  id            String   @id @default(uuid())
+  patientId     String   @unique
+  patient       Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  dataEncrypted String   // JSON stringified fields encrypted with AES-256-GCM
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model AssessmentInstrument {
+  id                  String                 @id @default(uuid())
+  name                String
+  acronym             String                 @unique
+  category            String
+  description         String
+  whatItMeasures      String
+  authors             String
+  reference           String
+  itemCount           Int
+  scoringMethod       String
+  cutoffs             String                 // JSON string of cutoff thresholds
+  interpretationRules String                 // JSON string of rules
+  targetAge           String?
+  instructions        String
+  canApplyOnline      Boolean                @default(true)
+  hasAutoScoring      Boolean                @default(true)
+  usageConditions     String
+  verificationSource  String
+  items               String                 // JSON string of items and scale options
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  assignments         AssessmentAssignment[]
+}
+
+model AssessmentAssignment {
+  id           String              @id @default(uuid())
+  patientId    String
+  patient      Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  instrumentId String
+  instrument   AssessmentInstrument @relation(fields: [instrumentId], references: [id], onDelete: Cascade)
+  secureToken  String              @unique
+  status       String              @default("ENVIADO") // ENVIADO, RESPONDIDO, EXPIRADO, CANCELADO
+  sentAt       DateTime            @default(now())
+  expiresAt    DateTime
+  respondedAt  DateTime?
+  response     AssessmentResponse?
+}
+
+model AssessmentResponse {
+  id               String               @id @default(uuid())
+  assignmentId     String               @unique
+  assignment       AssessmentAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  answersEncrypted String               // JSON of answer values encrypted
+  totalScore       Float?
+  classification   String?
+  completedAt      DateTime             @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  patientId String?
+  details   String?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+}
+
+model ProfessionalSettings {
+  id            String   @id @default("default")
+  therapistName String   @default("Psicóloga(o)")
+  crp           String   @default("00/00000")
+  clinicName    String?
+  headerText    String?
+  footerText    String?
+  watermarkText String?
+  showWatermark Boolean  @default(false)
+  updatedAt     DateTime @updatedAt
+}
