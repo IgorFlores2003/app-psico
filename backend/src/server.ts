@@ -1,10 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import crypto from 'crypto';
 import routes from './routes';
-import db from './lib/knex';
-import { AUTHORIZED_SCALES } from './lib/scales';
 
 const app = express();
 const PORT = process.env.PORT || 3333;
@@ -35,10 +32,10 @@ if (!process.env.VERCEL) {
   app.listen(PORT, () => {
     console.log(`\n🛡️  Backend Clínico Seguro rodando em http://localhost:${PORT}`);
     console.log(`📡 CORS configurado para: ${CLIENT_URL}\n`);
-    initDb();
   });
 }
 
 export default app;
+
 
 
