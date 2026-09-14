@@ -20,60 +20,13 @@ app.use(
 
 app.use(express.json({ limit: '10mb' }));
 
-// Sincronização automática com Supabase / PostgreSQL ou SQLite
-let dbInitialized = false;
-async function initDb() {
-  if (dbInitialized) return;
-  try {
-    await db.migrate.latest();
-    // Seed essential assessment scales if missing
-    for (const scale of AUTHORIZED_SCALES) {
-      const existing = await db('assessment_instruments').where({ acronym: scale.acronym }).first();
-      if (!existing) {
-        await db('assessment_instruments').insert({
-          id: crypto.randomUUID(),
-          acronym: scale.acronym,
-          name: scale.name,
-          category: scale.category,
-          description: scale.description,
-          whatItMeasures: scale.whatItMeasures,
-          authors: scale.authors,
-          reference: scale.reference,
-          itemCount: scale.itemCount,
-          scoringMethod: scale.scoringMethod,
-          targetAge: scale.targetAge || 'Adultos',
-          instructions: scale.instructions,
-          canApplyOnline: true,
-          hasAutoScoring: true,
-          usageConditions: scale.usageConditions,
-          verificationSource: scale.verificationSource,
-          cutoffs: JSON.stringify(scale.cutoffs),
-          interpretationRules: JSON.stringify(scale.cutoffs),
-          items: JSON.stringify(scale.items),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
-      }
-    }
-    dbInitialized = true;
-    console.log('✅ Banco de dados sincronizado e tabelas prontas.');
-  } catch (err) {
-    console.error('⚠️ Inicialização do banco:', err);
-  }
-}
-
-// Middleware to ensure DB is initialized
-app.use(async (req, res, next) => {
-  if (!dbInitialized) {
-    await initDb();
-  }
-  next();
-});
-
 // Mount API routes
 app.use('/api', routes);
 
 // Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', service: 'Prontuario Backend', timestamp: new Date() });
+});
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'Prontuario Backend', timestamp: new Date() });
 });

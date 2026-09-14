@@ -15,5 +15,19 @@
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
+  },
+  "dependencies": {
+    "@google/genai": "^2.22.0",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "knex": "^3.3.0",
+    "otplib": "^13.5.0",
+    "pg": "^8.18.0",
+    "qrcode": "^1.5.4",
+    "xlsx": "^0.18.5"
   }
 }
+
