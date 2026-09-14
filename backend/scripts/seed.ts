@@ -3,12 +3,11 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { db } from '../src/lib/knex';
 import { AUTHORIZED_SCALES } from '../src/lib/scales';
-import { encrypt, encryptJSON } from '../src/lib/crypto';
 
 async function main() {
-  console.log('🌱 Iniciando seed do backend com Knex...');
+  console.log('🌱 Iniciando seed essencial do backend com Knex...');
 
-  // Ensure migrations are ran
+  // Ensure migrations are run
   await db.migrate.latest();
 
   const defaultEmail = process.env.ADMIN_EMAIL || 'terapeuta@psicologia.com';
@@ -77,78 +76,11 @@ async function main() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
-      console.log(`✅ Escala cadastrada: ${scale.acronym}`);
+      console.log(`✅ Escala autorizada cadastrada: ${scale.acronym}`);
     }
   }
 
-  const fictitiousEmail = 'paciente.ficticio@exemplo.com';
-  let fictitiousPatient = await db('patients').where({ email: fictitiousEmail }).first();
-
-  if (!fictitiousPatient) {
-    const patientId = crypto.randomUUID();
-    await db('patients').insert({
-      id: patientId,
-      fullName: 'Lucas Fernandes de Oliveira (Fictício)',
-      birthDate: '1994-05-18',
-      email: fictitiousEmail,
-      phone: '(11) 98765-4321',
-      notes: encrypt('Paciente fictício para testes seguros.'),
-      status: 'ATIVO',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-
-    await db('anamnesis').insert({
-      id: crypto.randomUUID(),
-      patientId,
-      dataEncrypted: encryptJSON({
-        demandaPrincipal: 'Manejo de ansiedade e sobrecarga no trabalho com sintomas de insônia inicial.',
-        historicoDemanda: 'Sintomas intensificados nos últimos 6 meses após mudança de cargo.',
-        fatoresProtecao: 'Boa capacidade reflexiva, apoio familiar.',
-        objetivosTerapeuticos: 'Desenvolver repertório de autorregulação e higiene do sono.',
-      }),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-
-    const sessionId = crypto.randomUUID();
-    await db('sessions').insert({
-      id: sessionId,
-      patientId,
-      sessionDate: '2026-08-05',
-      sessionTime: '14:00',
-      status: 'REALIZADA',
-      rawNotesEncrypted: encrypt('Primeira sessão de acolhimento.'),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-
-    await db('session_notes').insert({
-      id: crypto.randomUUID(),
-      sessionId,
-      contentEncrypted: encrypt(`O paciente compareceu pontualmente ao primeiro atendimento de alinhamento terapêutico, apresentando-se motivado para o processo. Relatou incômodo persistente relacionado à urgência constante e dificuldade para desacelerar ao término do expediente de trabalho.
-
-Exploramos a rotina atual e os pensamentos automáticos associados ao desempenho profissional. Foram introduzidas intervenções de psicoeducação sobre o ciclo da ansiedade e regulação respiratória.
-
-Como combinados, o paciente concordou em registrar situações gatilho e iniciar protocolo de higiene do sono.`),
-      status: 'APROVADO',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-
-    await db('medical_record_entries').insert({
-      id: crypto.randomUUID(),
-      sessionId,
-      contentEncrypted: encrypt(`Realizado atendimento psicológico inicial com foco em acolhimento e enquadre terapêutico. Aplicados procedimentos de psicoeducação sobre ansiedade e treino guiado de regulação respiratória. Observada boa receptividade. Combinada continuidade do acompanhamento.`),
-      status: 'APROVADO',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-
-    console.log(`✅ Paciente fictício criado: Lucas Fernandes de Oliveira`);
-  }
-
-  console.log('🎉 Seed do backend concluído com sucesso!');
+  console.log('🎉 Seed essencial concluído com sucesso (sem dados mockados)!');
 }
 
 main()

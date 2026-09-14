@@ -30,6 +30,8 @@ import {
   Lock,
   ChevronDown,
   ChevronUp,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import {
   LineChart,
@@ -46,8 +48,10 @@ import {
   setAuthToken,
   clearAuthToken,
 } from './services/api';
+import { useTheme } from './context/ThemeContext';
 
 export default function App() {
+  const { theme, toggleTheme } = useTheme();
   const [route, setRoute] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname;
@@ -243,6 +247,31 @@ export default function App() {
             </span>
           </div>
 
+          {/* Theme switcher */}
+          <button
+            onClick={toggleTheme}
+            type="button"
+            className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-900 border border-slate-800 rounded-lg transition-colors cursor-pointer mb-2.5"
+            title={theme === 'dark' ? 'Alternar para Modo Claro' : 'Alternar para Modo Escuro'}
+          >
+            <span className="flex items-center gap-2">
+              {theme === 'dark' ? (
+                <>
+                  <Moon className="w-3.5 h-3.5 text-teal-400" />
+                  <span>Modo Escuro</span>
+                </>
+              ) : (
+                <>
+                  <Sun className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Modo Claro</span>
+                </>
+              )}
+            </span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">
+              {theme === 'dark' ? 'Escuro' : 'Claro'}
+            </span>
+          </button>
+
           <button
             onClick={() => {
               clearAuthToken();
@@ -263,7 +292,7 @@ export default function App() {
           <PatientDetailView patientId={patientId} onBack={() => navigate('/')} />
         )}
         {route === '/escalas' && <ScalesCatalogView />}
-        {route === '/configuracoes' && <SettingsView />}
+        {route === '/configuracoes' && <SettingsView onUserUpdated={setCurrentUser} />}
       </main>
     </div>
   );
@@ -273,31 +302,77 @@ export default function App() {
    1. LOGIN VIEW
    ========================================== */
 function LoginView({ onSuccess }: { onSuccess: (user: any) => void }) {
-  const [email, setEmail] = useState('terapeuta@psicologia.com');
-  const [password, setPassword] = useState('Terapeuta@Segura2026!');
+  const { theme, toggleTheme } = useTheme();
+  const [isRegister, setIsRegister] = useState(false);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [totpToken, setTotpToken] = useState('');
   const [requires2FA, setRequires2FA] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setLoading(true);
 
+    if (isRegister) {
+      if (!name.trim()) {
+        setError('Por favor, informe seu nome completo profissional.');
+        return;
+      }
+      if (password.length < 8) {
+        setError('A senha deve conter no mínimo 8 caracteres.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError('As senhas digitadas não coincidem.');
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const res = await apiFetch('/auth/register', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: name.trim(),
+            email: email.trim(),
+            password,
+          }),
+        });
+
+        if (!res.ok) {
+          setError(res.data?.error || 'Erro ao criar conta.');
+          return;
+        }
+
+        if (res.data?.token) {
+          setAuthToken(res.data.token);
+          onSuccess(res.data.user);
+        }
+      } catch {
+        setError('Erro de conexão com o backend.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Login normal
+    setLoading(true);
     try {
       const res = await apiFetch('/auth/login', {
         method: 'POST',
         body: JSON.stringify({
-          email,
+          email: email.trim(),
           password,
-          totpToken: requires2FA ? totpToken : undefined,
+          totpToken: totpToken.trim() || undefined,
         }),
       });
 
       if (!res.ok) {
         setError(res.data?.error || 'Credenciais inválidas.');
-        setLoading(false);
         return;
       }
 
@@ -319,7 +394,18 @@ function LoginView({ onSuccess }: { onSuccess: (user: any) => void }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative">
+      <div className="absolute top-4 right-4">
+        <button
+          onClick={toggleTheme}
+          type="button"
+          className="px-3 py-2 rounded-xl border border-slate-800 bg-slate-900 text-slate-300 hover:text-white transition-all cursor-pointer shadow-lg flex items-center gap-2 text-xs font-medium"
+        >
+          {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-teal-600" />}
+          <span className="hidden sm:inline">{theme === 'dark' ? 'Modo Claro' : 'Modo Escuro'}</span>
+        </button>
+      </div>
+
       <div className="w-full max-w-md bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-2xl space-y-6">
         <div className="text-center space-y-2">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-teal-600 to-emerald-500 mx-auto flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-teal-950/50">
@@ -330,7 +416,9 @@ function LoginView({ onSuccess }: { onSuccess: (user: any) => void }) {
           </h1>
           <p className="text-xs text-slate-400 flex items-center justify-center gap-1.5">
             <Lock className="w-3.5 h-3.5 text-teal-400" />
-            Acesso Exclusivo da Profissional • LGPD & AES-256
+            {isRegister
+              ? 'Cadastro de Conta da Terapeuta • LGPD'
+              : 'Acesso Exclusivo da Profissional • LGPD & AES-256'}
           </p>
         </div>
 
@@ -341,30 +429,68 @@ function LoginView({ onSuccess }: { onSuccess: (user: any) => void }) {
           </div>
         )}
 
-        <form onSubmit={handleLogin} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {isRegister && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                Nome Completo Profissional
+              </label>
+              <input
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ex: Dra. Maria Clara Silva"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-teal-500"
+              />
+            </div>
+          )}
+
           {!requires2FA ? (
             <>
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">E-mail</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">E-mail Profissional</label>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  placeholder="seu.email@exemplo.com"
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-teal-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Senha</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  {isRegister ? 'Criar Senha (mín. 8 caracteres)' : 'Senha'}
+                </label>
                 <input
                   type="password"
                   required
+                  minLength={8}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  placeholder={isRegister ? 'Mínimo 8 caracteres' : 'Sua senha de acesso'}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-teal-500"
                 />
               </div>
+
+              {isRegister && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Confirme a Senha
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Repita a mesma senha"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-teal-500"
+                  />
+                </div>
+              )}
             </>
           ) : (
             <div>
@@ -388,9 +514,30 @@ function LoginView({ onSuccess }: { onSuccess: (user: any) => void }) {
             disabled={loading}
             className="w-full py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-lg shadow-teal-950/40 disabled:opacity-50 transition-all cursor-pointer"
           >
-            {loading ? 'Validando...' : requires2FA ? 'Confirmar 2FA' : 'Entrar no Sistema'}
+            {loading
+              ? 'Processando...'
+              : isRegister
+              ? 'Criar Conta & Entrar'
+              : requires2FA
+              ? 'Confirmar 2FA'
+              : 'Entrar no Sistema'}
           </button>
         </form>
+
+        <div className="pt-2 text-center">
+          <button
+            type="button"
+            onClick={() => {
+              setIsRegister(!isRegister);
+              setError(null);
+            }}
+            className="text-xs text-teal-400 hover:text-teal-300 font-medium transition-colors cursor-pointer"
+          >
+            {isRegister
+              ? 'Já possui uma conta? Clique para entrar'
+              : 'Primeiro acesso? Criar nova conta de terapeuta'}
+          </button>
+        </div>
 
         <p className="text-[11px] text-slate-500 text-center">
           Servidor local conectado na porta 3333 • Criptografia ativa
@@ -483,7 +630,7 @@ function PatientsView({ onSelectPatient }: { onSelectPatient: (id: string) => vo
           className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold flex items-center gap-2 shadow-lg shadow-teal-950/40 cursor-pointer"
         >
           <Plus className="w-4 h-4" />
-          + Cadastrar Paciente
+          Cadastrar Paciente
         </button>
       </div>
 
@@ -660,6 +807,7 @@ function PatientsView({ onSelectPatient }: { onSelectPatient: (id: string) => vo
    3. PATIENT DETAIL VIEW (8 ABAS + IA DUAL)
    ========================================== */
 function PatientDetailView({ patientId, onBack }: { patientId: string; onBack: () => void }) {
+  const { theme } = useTheme();
   const [patient, setPatient] = useState<any>(null);
   const [sessions, setSessions] = useState<any[]>([]);
   const [assignments, setAssignments] = useState<any[]>([]);
@@ -670,7 +818,7 @@ function PatientDetailView({ patientId, onBack }: { patientId: string; onBack: (
   // Modal Sessão IA
   const [sessModal, setSessModal] = useState(false);
   const [sessDate, setSessDate] = useState(new Date().toISOString().split('T')[0]);
-  const [sessTime, setSessTime] = useState('14:00');
+  const [sessTime, setSessTime] = useState(() => new Date().toTimeString().substring(0, 5));
   const [sessStatus, setSessStatus] = useState('REALIZADA');
   const [transcript, setTranscript] = useState('');
   const [genNote, setGenNote] = useState('');
@@ -830,7 +978,7 @@ function PatientDetailView({ patientId, onBack }: { patientId: string; onBack: (
           className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white text-xs font-bold shadow-lg shadow-teal-950/40 flex items-center gap-2 cursor-pointer"
         >
           <Plus className="w-4 h-4" />
-          + Adicionar Sessão
+          Adicionar Sessão
         </button>
       </div>
 
@@ -1034,7 +1182,7 @@ function PatientDetailView({ patientId, onBack }: { patientId: string; onBack: (
               className="px-3.5 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-              + Aplicar Escala
+              Aplicar Escala
             </button>
           </div>
 
@@ -1094,10 +1242,18 @@ function PatientDetailView({ patientId, onBack }: { patientId: string; onBack: (
                 <div className="h-64 w-full pt-2">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={item.dataPoints}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                      <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} />
-                      <YAxis stroke="#94a3b8" fontSize={11} />
-                      <Tooltip />
+                      <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#334155' : '#e2e8f0'} />
+                      <XAxis dataKey="date" stroke={theme === 'dark' ? '#94a3b8' : '#64748b'} fontSize={11} />
+                      <YAxis stroke={theme === 'dark' ? '#94a3b8' : '#64748b'} fontSize={11} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff',
+                          borderColor: theme === 'dark' ? '#1e293b' : '#e2e8f0',
+                          color: theme === 'dark' ? '#f8fafc' : '#0f172a',
+                          borderRadius: '12px',
+                          boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+                        }}
+                      />
                       <Line
                         type="monotone"
                         dataKey="score"
@@ -1338,65 +1494,412 @@ function ScalesCatalogView() {
 /* ==========================================
    5. SETTINGS VIEW (CONFIGURAÇÕES & AUDITORIA)
    ========================================== */
-function SettingsView() {
-  const [settings, setSettings] = useState<any>({ therapistName: '', crp: '' });
+function SettingsView({ onUserUpdated }: { onUserUpdated?: (user: any) => void }) {
+  const { theme, setTheme } = useTheme();
+  const [settings, setSettings] = useState<any>({ therapistName: '', crp: '', clinicName: '' });
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
+
+  // Perfil (Nome e E-mail de Login)
+  const [profileName, setProfileName] = useState('');
+  const [profileEmail, setProfileEmail] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileMsg, setProfileMsg] = useState<{ text: string; isError: boolean } | null>(null);
+
+  // Segurança (Alteração de Senha)
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [passwordMsg, setPasswordMsg] = useState<{ text: string; isError: boolean } | null>(null);
+
+  // Configurações Profissionais
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsMsg, setSettingsMsg] = useState<{ text: string; isError: boolean } | null>(null);
 
   useEffect(() => {
     apiFetch('/configuracoes').then((res) => {
       if (res.ok) {
         if (res.data?.settings) setSettings(res.data.settings);
         if (res.data?.auditLogs) setAuditLogs(res.data.auditLogs);
+        if (res.data?.user) {
+          setProfileName(res.data.user.name || '');
+          setProfileEmail(res.data.user.email || '');
+        }
       }
     });
   }, []);
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await apiFetch('/configuracoes', {
-      method: 'PUT',
-      body: JSON.stringify(settings),
-    });
-    if (res.ok) alert('Configurações salvas!');
+    setSavingProfile(true);
+    setProfileMsg(null);
+    try {
+      const res = await apiFetch('/auth/profile', {
+        method: 'PUT',
+        body: JSON.stringify({ name: profileName, email: profileEmail }),
+      });
+      if (res.ok && res.data?.token) {
+        setAuthToken(res.data.token);
+        if (res.data.user && onUserUpdated) {
+          onUserUpdated(res.data.user);
+        }
+        setProfileMsg({ text: 'Perfil e e-mail atualizados com sucesso!', isError: false });
+      } else {
+        setProfileMsg({ text: res.data?.error || 'Erro ao atualizar dados de acesso.', isError: true });
+      }
+    } catch {
+      setProfileMsg({ text: 'Falha de comunicação com o servidor.', isError: true });
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordMsg(null);
+    if (!currentPassword) {
+      setPasswordMsg({ text: 'Informe a senha atual.', isError: true });
+      return;
+    }
+    if (newPassword.length < 8) {
+      setPasswordMsg({ text: 'A nova senha deve ter no mínimo 8 caracteres.', isError: true });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMsg({ text: 'As novas senhas digitadas não conferem.', isError: true });
+      return;
+    }
+
+    setSavingPassword(true);
+    try {
+      const res = await apiFetch('/auth/change-password', {
+        method: 'PUT',
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      if (res.ok && res.data?.token) {
+        setAuthToken(res.data.token);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setPasswordMsg({ text: 'Senha alterada com sucesso! Suas outras sessões foram desconectadas.', isError: false });
+      } else {
+        setPasswordMsg({ text: res.data?.error || 'Erro ao alterar senha.', isError: true });
+      }
+    } catch {
+      setPasswordMsg({ text: 'Falha de comunicação com o servidor.', isError: true });
+    } finally {
+      setSavingPassword(false);
+    }
+  };
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingSettings(true);
+    setSettingsMsg(null);
+    try {
+      const res = await apiFetch('/configuracoes', {
+        method: 'PUT',
+        body: JSON.stringify(settings),
+      });
+      if (res.ok) {
+        setSettingsMsg({ text: 'Dados profissionais atualizados com sucesso!', isError: false });
+      } else {
+        setSettingsMsg({ text: res.data?.error || 'Erro ao salvar dados profissionais.', isError: true });
+      }
+    } catch {
+      setSettingsMsg({ text: 'Falha de comunicação com o servidor.', isError: true });
+    } finally {
+      setSavingSettings(false);
+    }
   };
 
   return (
     <div className="space-y-6 max-w-4xl">
       <div className="border-b border-slate-800 pb-4">
         <h1 className="text-2xl font-bold text-white tracking-tight">Configurações & Sigilo</h1>
-        <p className="text-xs text-slate-400 mt-0.5">Identidade visual e trilha de auditoria LGPD.</p>
+        <p className="text-xs text-slate-400 mt-0.5">Gerencie seus dados de acesso, preferências visuais, dados clínicos e trilha LGPD.</p>
       </div>
 
-      <form onSubmit={handleSave} className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
-        <h2 className="text-sm font-bold text-white">Dados Profissionais (Cabeçalho/Rodapé)</h2>
-        <div className="grid grid-cols-2 gap-4">
+      {/* Aparência da Interface */}
+      <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+        <div>
+          <h2 className="text-sm font-bold text-white flex items-center gap-2">
+            {theme === 'dark' ? <Moon className="w-4 h-4 text-teal-400" /> : <Sun className="w-4 h-4 text-amber-500" />}
+            Aparência da Interface
+          </h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Personalize o tema visual do sistema clínico conforme sua preferência de iluminação.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <button
+            type="button"
+            onClick={() => setTheme('light')}
+            className={`p-4 rounded-xl border text-left flex items-start gap-3.5 transition-all cursor-pointer ${
+              theme === 'light'
+                ? 'border-teal-500 bg-teal-500/10 ring-2 ring-teal-500/40'
+                : 'border-slate-800 bg-slate-950/40 hover:border-slate-700'
+            }`}
+          >
+            <div className="p-2.5 rounded-xl bg-amber-500/15 text-amber-500 shrink-0 mt-0.5">
+              <Sun className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-bold text-white">Modo Claro (Branco)</p>
+                {theme === 'light' && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-teal-600 text-white">
+                    Ativo
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                Fundo claro clínico com alto contraste para ambientes iluminados durante o consultório.
+              </p>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTheme('dark')}
+            className={`p-4 rounded-xl border text-left flex items-start gap-3.5 transition-all cursor-pointer ${
+              theme === 'dark'
+                ? 'border-teal-500 bg-teal-500/10 ring-2 ring-teal-500/40'
+                : 'border-slate-800 bg-slate-950/40 hover:border-slate-700'
+            }`}
+          >
+            <div className="p-2.5 rounded-xl bg-teal-500/15 text-teal-400 shrink-0 mt-0.5">
+              <Moon className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-bold text-white">Modo Escuro</p>
+                {theme === 'dark' && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-teal-600 text-white">
+                    Ativo
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                Tons profundos de ardósia para redução da fadiga ocular em atendimentos prolongados.
+              </p>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* Meus Dados de Acesso (Nome e E-mail) */}
+      <form onSubmit={handleUpdateProfile} className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+        <div>
+          <h2 className="text-sm font-bold text-white flex items-center gap-2">
+            <Mail className="w-4 h-4 text-teal-400" />
+            Meus Dados de Acesso (Conta do Usuário)
+          </h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Atualize o nome de identificação e o e-mail utilizado para fazer login no sistema.
+          </p>
+        </div>
+
+        {profileMsg && (
+          <div
+            className={`p-3 rounded-xl text-xs flex items-center gap-2 border ${
+              profileMsg.isError
+                ? 'bg-rose-950/40 text-rose-300 border-rose-800/50'
+                : 'bg-teal-950/40 text-teal-300 border-teal-800/50'
+            }`}
+          >
+            {profileMsg.isError ? (
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0" />
+            )}
+            <span>{profileMsg.text}</span>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs text-slate-300 mb-1">Nome Profissional</label>
+            <label className="block text-xs font-medium text-slate-300 mb-1">Nome Completo</label>
+            <input
+              type="text"
+              required
+              value={profileName}
+              onChange={(e) => setProfileName(e.target.value)}
+              placeholder="Ex: Dra. Ana Paula Silva"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-teal-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1">E-mail de Login</label>
+            <input
+              type="email"
+              required
+              value={profileEmail}
+              onChange={(e) => setProfileEmail(e.target.value)}
+              placeholder="Ex: seu-email@dominio.com"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-teal-500"
+            />
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          disabled={savingProfile}
+          className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-xs font-semibold cursor-pointer transition-colors"
+        >
+          {savingProfile ? 'Salvando...' : 'Atualizar Dados de Acesso'}
+        </button>
+      </form>
+
+      {/* Alteração de Senha */}
+      <form onSubmit={handleChangePassword} className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+        <div>
+          <h2 className="text-sm font-bold text-white flex items-center gap-2">
+            <KeyRound className="w-4 h-4 text-teal-400" />
+            Segurança & Alteração de Senha
+          </h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Altere sua senha de acesso. Por segurança, ao alterar a senha, todas as outras sessões ativas serão desconectadas.
+          </p>
+        </div>
+
+        {passwordMsg && (
+          <div
+            className={`p-3 rounded-xl text-xs flex items-center gap-2 border ${
+              passwordMsg.isError
+                ? 'bg-rose-950/40 text-rose-300 border-rose-800/50'
+                : 'bg-teal-950/40 text-teal-300 border-teal-800/50'
+            }`}
+          >
+            {passwordMsg.isError ? (
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0" />
+            )}
+            <span>{passwordMsg.text}</span>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1">Senha Atual</label>
+            <input
+              type="password"
+              required
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-teal-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1">Nova Senha (min. 8 car.)</label>
+            <input
+              type="password"
+              required
+              minLength={8}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Nova senha forte"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-teal-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1">Confirmar Nova Senha</label>
+            <input
+              type="password"
+              required
+              minLength={8}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Repita a nova senha"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-teal-500"
+            />
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          disabled={savingPassword}
+          className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-xs font-semibold cursor-pointer transition-colors"
+        >
+          {savingPassword ? 'Alterando senha...' : 'Alterar Senha'}
+        </button>
+      </form>
+
+      {/* Dados Profissionais para Laudos e Receituários */}
+      <form onSubmit={handleSaveSettings} className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+        <div>
+          <h2 className="text-sm font-bold text-white flex items-center gap-2">
+            <Lock className="w-4 h-4 text-teal-400" />
+            Dados Profissionais (Cabeçalho & Rodapé de Laudos)
+          </h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Estes dados aparecem nas impressões, atestados e exportações de relatórios clínicos.
+          </p>
+        </div>
+
+        {settingsMsg && (
+          <div
+            className={`p-3 rounded-xl text-xs flex items-center gap-2 border ${
+              settingsMsg.isError
+                ? 'bg-rose-950/40 text-rose-300 border-rose-800/50'
+                : 'bg-teal-950/40 text-teal-300 border-teal-800/50'
+            }`}
+          >
+            {settingsMsg.isError ? (
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0" />
+            )}
+            <span>{settingsMsg.text}</span>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1">Nome Profissional</label>
             <input
               type="text"
               value={settings.therapistName || ''}
               onChange={(e) => setSettings({ ...settings, therapistName: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+              placeholder="Ex: Dra. Juliana Souza"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-teal-500"
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-300 mb-1">CRP</label>
+            <label className="block text-xs font-medium text-slate-300 mb-1">CRP</label>
             <input
               type="text"
               value={settings.crp || ''}
               onChange={(e) => setSettings({ ...settings, crp: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+              placeholder="Ex: 06/123456"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-teal-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1">Clínica / Consultório (Opcional)</label>
+            <input
+              type="text"
+              value={settings.clinicName || ''}
+              onChange={(e) => setSettings({ ...settings, clinicName: e.target.value })}
+              placeholder="Ex: Clínica Integrar"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-teal-500"
             />
           </div>
         </div>
+
         <button
           type="submit"
-          className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold cursor-pointer"
+          disabled={savingSettings}
+          className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-xs font-semibold cursor-pointer transition-colors"
         >
-          Salvar Alterações
+          {savingSettings ? 'Salvando...' : 'Salvar Dados Profissionais'}
         </button>
       </form>
 
+      {/* Trilha de Auditoria LGPD */}
       <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
         <h2 className="text-sm font-bold text-white">Trilha de Auditoria LGPD (Sem dados clínicos)</h2>
         <div className="overflow-x-auto">
@@ -1430,6 +1933,7 @@ function SettingsView() {
    6. ISOLATED PATIENT RESPONDER VIEW
    ========================================== */
 function ResponderView({ token }: { token: string }) {
+  const { theme, toggleTheme } = useTheme();
   const [scale, setScale] = useState<any>(null);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);
@@ -1489,6 +1993,17 @@ function ResponderView({ token }: { token: string }) {
 
   return (
     <div className="min-h-screen bg-slate-950 py-8 px-4 max-w-xl mx-auto space-y-6">
+      <div className="flex justify-end">
+        <button
+          onClick={toggleTheme}
+          type="button"
+          className="px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-900 text-slate-300 hover:text-white transition-all cursor-pointer shadow flex items-center gap-1.5 text-xs font-medium"
+        >
+          {theme === 'dark' ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-teal-600" />}
+          <span>{theme === 'dark' ? 'Modo Claro' : 'Modo Escuro'}</span>
+        </button>
+      </div>
+
       <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
         <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-teal-950 text-teal-300 uppercase">
           {scale.category}

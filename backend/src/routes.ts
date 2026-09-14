@@ -14,6 +14,7 @@ const router = Router();
 
 // Public routes
 router.post('/auth/login', AuthController.login);
+router.post('/auth/register', AuthController.register);
 router.get('/responder/:token', ResponderController.getByToken);
 router.post('/responder/:token', ResponderController.submitAnswers);
 
@@ -22,6 +23,8 @@ router.use(authMiddleware);
 
 // Auth & Security
 router.get('/auth/me', AuthController.me);
+router.put('/auth/profile', AuthController.updateProfile);
+router.put('/auth/change-password', AuthController.changePassword);
 router.post('/auth/2fa', AuthController.setup2FA);
 router.put('/auth/2fa', AuthController.confirm2FA);
 router.delete('/auth/2fa', AuthController.disable2FA);

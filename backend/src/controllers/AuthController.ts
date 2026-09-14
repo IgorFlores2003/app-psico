@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -201,5 +202,203 @@ export class AuthController {
         updatedAt: new Date().toISOString(),
       });
     res.json({ success: true, message: 'Todas as sessões foram invalidadas.' });
+  }
+
+  static async register(req: Request, res: Response): Promise<void> {
+    const { name, email, password } = req.body;
+    const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const userAgent = (req.headers['user-agent'] as string) || '';
+
+    if (!name?.trim()) {
+      res.status(400).json({ error: 'Nome completo é obrigatório.' });
+      return;
+    }
+    if (!email?.trim() || !email.includes('@')) {
+      res.status(400).json({ error: 'E-mail válido é obrigatório.' });
+      return;
+    }
+    if (!password || password.trim().length < 8) {
+      res.status(400).json({ error: 'A senha deve conter no mínimo 8 caracteres.' });
+      return;
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const existing = await db('users').where({ email: cleanEmail }).first();
+    if (existing) {
+      res.status(409).json({ error: 'Já existe uma conta cadastrada com este e-mail.' });
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(password.trim(), 12);
+    const userId = crypto.randomUUID();
+
+    await db('users').insert({
+      id: userId,
+      name: name.trim(),
+      email: cleanEmail,
+      passwordHash,
+      twoFactorEnabled: false,
+      sessionVersion: 1,
+      failedLoginAttempts: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    const existingSettings = await db('professional_settings').where({ id: 'default' }).first();
+    if (!existingSettings) {
+      await db('professional_settings').insert({
+        id: 'default',
+        therapistName: name.trim(),
+        crp: '00/00000',
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    const secret = process.env.JWT_SECRET!;
+    const token = jwt.sign(
+      { userId, email: cleanEmail, sessionVersion: 1 },
+      secret,
+      { expiresIn: '8h' }
+    );
+
+    await createAuditLog({
+      action: 'USER_REGISTERED',
+      userId,
+      details: `Novo terapeuta cadastrado: ${cleanEmail}`,
+      ipAddress: ip,
+      userAgent,
+    });
+
+    res.status(201).json({
+      success: true,
+      token,
+      user: {
+        id: userId,
+        email: cleanEmail,
+        name: name.trim(),
+        twoFactorEnabled: false,
+      },
+    });
+  }
+
+  static async updateProfile(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const user = req.user!;
+    const { name, email } = req.body;
+
+    if (!name?.trim()) {
+      res.status(400).json({ error: 'Nome não pode ser vazio.' });
+      return;
+    }
+    if (!email?.trim() || !email.includes('@')) {
+      res.status(400).json({ error: 'E-mail inválido.' });
+      return;
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+
+    // Check if new email is taken by another user
+    if (cleanEmail !== user.email) {
+      const existing = await db('users').where({ email: cleanEmail }).whereNot({ id: user.id }).first();
+      if (existing) {
+        res.status(409).json({ error: 'Este e-mail já está em uso por outro usuário.' });
+        return;
+      }
+    }
+
+    await db('users').where({ id: user.id }).update({
+      name: name.trim(),
+      email: cleanEmail,
+      updatedAt: new Date().toISOString(),
+    });
+
+    const settings = await db('professional_settings').where({ id: 'default' }).first();
+    if (settings && (settings.therapistName === user.name || !settings.therapistName)) {
+      await db('professional_settings').where({ id: 'default' }).update({
+        therapistName: name.trim(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    await createAuditLog({
+      action: 'PROFILE_UPDATED',
+      userId: user.id,
+      details: `Perfil atualizado: ${name.trim()} (${cleanEmail})`,
+    });
+
+    const secret = process.env.JWT_SECRET!;
+    const dbUser = await db('users').where({ id: user.id }).first();
+    const token = jwt.sign(
+      { userId: user.id, email: cleanEmail, sessionVersion: dbUser.sessionVersion },
+      secret,
+      { expiresIn: '8h' }
+    );
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        email: cleanEmail,
+        name: name.trim(),
+        twoFactorEnabled: !!dbUser.twoFactorEnabled,
+      },
+      message: 'Perfil atualizado com sucesso!',
+    });
+  }
+
+  static async changePassword(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const user = req.user!;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword) {
+      res.status(400).json({ error: 'Senha atual é obrigatória.' });
+      return;
+    }
+    if (!newPassword || newPassword.trim().length < 8) {
+      res.status(400).json({ error: 'A nova senha deve conter no mínimo 8 caracteres.' });
+      return;
+    }
+
+    const dbUser = await db('users').where({ id: user.id }).first();
+    if (!dbUser) {
+      res.status(404).json({ error: 'Usuário não encontrado.' });
+      return;
+    }
+
+    const isValid = await bcrypt.compare(currentPassword, dbUser.passwordHash);
+    if (!isValid) {
+      res.status(400).json({ error: 'Senha atual incorreta.' });
+      return;
+    }
+
+    const newHash = await bcrypt.hash(newPassword.trim(), 12);
+
+    const newVersion = (dbUser.sessionVersion || 1) + 1;
+    await db('users').where({ id: user.id }).update({
+      passwordHash: newHash,
+      sessionVersion: newVersion,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+      updatedAt: new Date().toISOString(),
+    });
+
+    await createAuditLog({
+      action: 'PASSWORD_CHANGED',
+      userId: user.id,
+      details: 'Senha alterada pelo próprio usuário',
+    });
+
+    const secret = process.env.JWT_SECRET!;
+    const token = jwt.sign(
+      { userId: user.id, email: dbUser.email, sessionVersion: newVersion },
+      secret,
+      { expiresIn: '8h' }
+    );
+
+    res.json({
+      success: true,
+      token,
+      message: 'Senha alterada com sucesso! As demais sessões foram desconectadas.',
+    });
   }
 }

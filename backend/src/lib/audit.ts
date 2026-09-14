@@ -23,7 +23,9 @@ export type AuditAction =
   | 'EXPORT_MEDICAL_RECORD_PDF'
   | 'EXPORT_SESSION_NOTES_PDF'
   | 'EXPORT_SESSIONS_EXCEL'
-  | 'SETTINGS_UPDATED';
+  | 'SETTINGS_UPDATED'
+  | 'USER_REGISTERED'
+  | 'PROFILE_UPDATED';
 
 interface AuditParams {
   action: AuditAction;

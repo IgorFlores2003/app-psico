@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Base body and root variables */
 :root {
   color-scheme: dark;
 }
@@ -7,10 +10,9 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: #020617; /* slate-950 */
-  color: #f8fafc; /* slate-50 */
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 #root {
@@ -19,18 +21,148 @@ body {
   flex-direction: column;
 }
 
-/* Custom scrollbar for clinical readability */
-::-webkit-scrollbar {
+/* ==========================================================================
+   Dark Theme (Default)
+   ========================================================================== */
+html.dark body {
+  background-color: #020617; /* slate-950 */
+  color: #f8fafc; /* slate-50 */
+}
+
+/* Custom scrollbar for dark mode */
+html.dark ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-::-webkit-scrollbar-track {
+html.dark ::-webkit-scrollbar-track {
   background: #0f172a;
 }
-::-webkit-scrollbar-thumb {
+html.dark ::-webkit-scrollbar-thumb {
   background: #334155;
   border-radius: 3px;
 }
-::-webkit-scrollbar-thumb:hover {
+html.dark ::-webkit-scrollbar-thumb:hover {
   background: #475569;
+}
+
+/* ==========================================================================
+   Light Theme (Modo Claro)
+   ========================================================================== */
+html.light {
+  color-scheme: light;
+  /* Remap Tailwind slate palette for clean clinical SaaS aesthetics */
+  --color-slate-950: #f8fafc; /* Canvas / page background */
+  --color-slate-900: #ffffff; /* Card / panel / sidebar background */
+  --color-slate-850: #f1f5f9; /* Wells / subtle inputs */
+  --color-slate-800: #e2e8f0; /* Crisp borders */
+  --color-slate-500: #64748b; /* Secondary text */
+  --color-slate-400: #475569; /* Muted text */
+  --color-slate-300: #334155; /* Body text */
+  --color-slate-200: #1e293b; /* Emphasized text / titles */
+  --color-slate-100: #0f172a; /* High-contrast headers */
+}
+
+html.light body {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+/* Inputs & Form Controls in Light Mode */
+html.light input,
+html.light textarea,
+html.light select {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+html.light input:focus,
+html.light textarea:focus,
+html.light select:focus {
+  border-color: #0d9488 !important;
+  outline: 2px solid rgba(13, 148, 136, 0.2) !important;
+}
+
+html.light input::placeholder,
+html.light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Typography adjustments: headings on light mode */
+html.light h1.text-white,
+html.light h2.text-white,
+html.light h3.text-white,
+html.light h4.text-white,
+html.light p.text-white {
+  color: #0f172a;
+}
+
+/* Light mode depth & shadows */
+html.light .shadow-2xl,
+html.light .shadow-xl {
+  box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.07), 0 8px 10px -6px rgba(15, 23, 42, 0.04) !important;
+}
+
+html.light .shadow-lg {
+  box-shadow: 0 10px 15px -3px rgba(15, 23, 42, 0.05), 0 4px 6px -4px rgba(15, 23, 42, 0.03) !important;
+}
+
+html.light .shadow-sm {
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05) !important;
+}
+
+/* Badges & Status Chips in Light Mode */
+html.light .bg-emerald-950 {
+  background-color: #ecfdf5 !important;
+  color: #047857 !important;
+  border-color: #a7f3d0 !important;
+}
+
+html.light .bg-teal-950,
+html.light .bg-teal-950\/20 {
+  background-color: #f0fdfa !important;
+  color: #0f766e !important;
+  border-color: #99f6e4 !important;
+}
+
+html.light .bg-amber-950 {
+  background-color: #fffbeb !important;
+  color: #b45309 !important;
+  border-color: #fde68a !important;
+}
+
+html.light .bg-rose-950,
+html.light .bg-rose-950\/60 {
+  background-color: #fff1f2 !important;
+  color: #be123c !important;
+  border-color: #fecdd3 !important;
+}
+
+/* In Light Mode, active navigation / action buttons keep white text */
+html.light .bg-teal-600,
+html.light .bg-gradient-to-r,
+html.light .bg-gradient-to-tr {
+  color: #ffffff !important;
+}
+
+html.light .bg-teal-600 *,
+html.light .bg-gradient-to-r *,
+html.light .bg-gradient-to-tr * {
+  color: #ffffff !important;
+}
+
+/* Light scrollbar */
+html.light ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+html.light ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+html.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
