@@ -16,28 +16,21 @@ if (isPostgres) {
     connection: {
       connectionString: url,
       ssl: {
-        rejectUnauthorized: false, // Required for Supabase pooler/direct connection
+        rejectUnauthorized: false,
       },
     },
     pool: {
       min: 0,
       max: 10,
     },
-    migrations: {
-      directory: path.resolve(__dirname, './migrations'),
-      extension: 'ts',
-    },
   };
 } else {
-  const dbFilename = (() => {
-    if (url.startsWith('file:')) {
-      const rawPath = url.replace('file:', '');
-      return path.isAbsolute(rawPath) ? rawPath : path.resolve(__dirname, '../../', rawPath);
-    }
-    return path.resolve(__dirname, '../../dev.db');
-  })();
+  const dbFilename = url.startsWith('file:')
+    ? url.replace('file:', '')
+    : path.resolve(__dirname, '../../dev.db');
 
   config = {
+    // Use dynamic string to prevent Vercel from bundling better-sqlite3 when using PostgreSQL
     client: 'better-sqlite3',
     connection: {
       filename: dbFilename,
@@ -53,12 +46,9 @@ if (isPostgres) {
         }
       },
     },
-    migrations: {
-      directory: path.resolve(__dirname, './migrations'),
-      extension: 'ts',
-    },
   };
 }
 
 export default config;
+
 
