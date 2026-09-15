@@ -7,15 +7,24 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import knex, { Knex } from 'knex';
 
-// ─── Database (Supabase / PostgreSQL only on Vercel) ─────────────────────────
-const DATABASE_URL = process.env.DATABASE_URL!;
-const db: Knex = knex({
-  client: 'pg',
-  connection: {
-    connectionString: DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+// ─── Database (lazy — initializes on first use) ───────────────────────────────
+let _db: Knex | null = null;
+function getDb(): Knex {
+  if (!_db) {
+    const url = process.env.DATABASE_URL;
+    if (!url) throw new Error('DATABASE_URL env var is not set in Vercel');
+    _db = knex({
+      client: 'pg',
+      connection: { connectionString: url, ssl: { rejectUnauthorized: false } },
+      pool: { min: 0, max: 5 },
+    });
+  }
+  return _db;
+}
+const db = new Proxy({} as Knex, {
+  get(_: any, prop: string | symbol) {
+    return (getDb() as any)[prop];
   },
-  pool: { min: 0, max: 5 },
 });
 
 // ─── Crypto helpers (AES-256-GCM) ────────────────────────────────────────────
